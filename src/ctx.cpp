@@ -2737,21 +2737,159 @@ void FunctionEmitContext::scatter(llvm::Value *value, llvm::Value *ptr, const Ty
               pt != NULL || CastType<AtomicType>(valueType) != NULL || CastType<EnumType>(valueType) != NULL);
 
     llvm::Type *type = value->getType();
-    const char *funcName = NULL;
+    std::string funcName = "llvm.masked.scatter";
+    std::string TargetWidth = ".v" + std::to_string(g->target->getVectorWidth());
+    llvm::Value *ptrCast = NULL;
+    const char *ptrname = LLVMGetName(ptr, "_int2ptr");
+    llvm::Constant *Const = NULL;
+    llvm::Value *i1mask = NULL;
+    std::vector<llvm::Value *> args;
     if (pt != NULL) {
-        funcName = g->target->is32Bit() ? "__pseudo_scatter32_i32" : "__pseudo_scatter64_i64";
-    } else if (type == LLVMTypes::DoubleVectorType) {
-        funcName = g->target->is32Bit() ? "__pseudo_scatter32_double" : "__pseudo_scatter64_double";
-    } else if (type == LLVMTypes::Int64VectorType) {
-        funcName = g->target->is32Bit() ? "__pseudo_scatter32_i64" : "__pseudo_scatter64_i64";
-    } else if (type == LLVMTypes::FloatVectorType) {
-        funcName = g->target->is32Bit() ? "__pseudo_scatter32_float" : "__pseudo_scatter64_float";
-    } else if (type == LLVMTypes::Int32VectorType) {
-        funcName = g->target->is32Bit() ? "__pseudo_scatter32_i32" : "__pseudo_scatter64_i32";
-    } else if (type == LLVMTypes::Int16VectorType) {
-        funcName = g->target->is32Bit() ? "__pseudo_scatter32_i16" : "__pseudo_scatter64_i16";
-    } else if (type == LLVMTypes::Int8VectorType) {
-        funcName = g->target->is32Bit() ? "__pseudo_scatter32_i8" : "__pseudo_scatter64_i8";
+        if (g->target->is32Bit()) {
+            args.push_back(value);
+            llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::Int32PointerType, g->target->getVectorWidth());
+            ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+            args.push_back(ptrCast);
+            Const = LLVMInt32(4);
+            args.push_back(Const);
+            if (g->target->getMaskBitCount() == 8)
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+            else if (g->target->getMaskBitCount() == 16)
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+            else if (g->target->getMaskBitCount() == 32)
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+            else
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+            args.push_back(i1mask);
+            funcName = funcName + TargetWidth + "i32" + TargetWidth + "p0i32";
+        }
+        else {
+            args.push_back(value);
+            llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::Int64PointerType, g->target->getVectorWidth());
+            ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+            args.push_back(ptrCast);
+            Const = LLVMInt32(4);
+            args.push_back(Const);
+            if (g->target->getMaskBitCount() == 8)
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+            else if (g->target->getMaskBitCount() == 16)
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+            else if (g->target->getMaskBitCount() == 32)
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+            else
+                i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+            args.push_back(i1mask);
+            funcName = funcName + TargetWidth + "i64" + TargetWidth + "p0i64";
+        }
+    }
+    else if (type == LLVMTypes::DoubleVectorType) {
+        args.push_back(value);
+        llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::DoublePointerType, g->target->getVectorWidth());
+        ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+        args.push_back(ptrCast);
+        Const = LLVMInt32(8);
+        args.push_back(Const);
+        if (g->target->getMaskBitCount() == 8)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 16)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 32)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+        else
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+        args.push_back(i1mask);
+        funcName = funcName + TargetWidth + "f64" + TargetWidth + "p0f64";
+    }
+    else if (type == LLVMTypes::Int64VectorType) {
+        args.push_back(value);
+        llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::Int64PointerType, g->target->getVectorWidth());
+        ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+        args.push_back(ptrCast);
+        Const = LLVMInt32(8);
+        args.push_back(Const);
+        if (g->target->getMaskBitCount() == 8)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 16)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 32)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+        else
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+        args.push_back(i1mask);
+        funcName = funcName + TargetWidth + "i64" + TargetWidth + "p0i64";
+    }
+    else if (type == LLVMTypes::FloatVectorType) {
+        args.push_back(value);
+        llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::FloatPointerType, g->target->getVectorWidth());
+        ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+        args.push_back(ptrCast);
+        Const = LLVMInt32(4);
+        args.push_back(Const);
+        if (g->target->getMaskBitCount() == 8)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 16)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 32)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+        else
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+        args.push_back(i1mask);
+        funcName = funcName + TargetWidth + "f32" + TargetWidth + "p0f32";
+    }
+    else if (type == LLVMTypes::Int32VectorType) {
+        args.push_back(value);
+        llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::Int32PointerType, g->target->getVectorWidth());
+        ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+        args.push_back(ptrCast);
+        Const = LLVMInt32(4);
+        args.push_back(Const);
+        if (g->target->getMaskBitCount() == 8)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 16)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 32)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+        else
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+        args.push_back(i1mask);
+        funcName = funcName + TargetWidth + "i32" + TargetWidth + "p0i32";
+    }
+    else if (type == LLVMTypes::Int16VectorType) {
+        args.push_back(value);
+        llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::Int16PointerType, g->target->getVectorWidth());
+        ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+        args.push_back(ptrCast);
+        Const = LLVMInt32(2);
+        args.push_back(Const);
+        if (g->target->getMaskBitCount() == 8)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 16)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 32)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+        else
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+        args.push_back(i1mask);
+        funcName = funcName + TargetWidth + "i16" + TargetWidth + "p0i16";
+    }
+    else {
+        args.push_back(value);
+        AssertPos(currentPos, type == LLVMTypes::Int8VectorType);
+        llvm::Type *llvmVecType = llvm::VectorType::get(LLVMTypes::Int8PointerType, g->target->getVectorWidth());
+        ptrCast = new llvm::IntToPtrInst(ptr, llvmVecType, ptrname, bblock);
+        args.push_back(ptrCast);
+        Const = LLVMInt32(1);
+        args.push_back(Const);
+        if (g->target->getMaskBitCount() == 8)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt8Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 16)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt16Vector((const int32_t)0));
+        else if (g->target->getMaskBitCount() == 32)
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt32Vector((const int32_t)0));
+        else
+            i1mask = CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_SLT, mask, LLVMInt64Vector((const int64_t)0));
+        args.push_back(i1mask);
+        funcName = funcName + TargetWidth + "i8" + TargetWidth + "p0i8";
     }
 
     llvm::Function *scatterFunc = m->module->getFunction(funcName);
@@ -2759,10 +2897,6 @@ void FunctionEmitContext::scatter(llvm::Value *value, llvm::Value *ptr, const Ty
 
     AddInstrumentationPoint("scatter");
 
-    std::vector<llvm::Value *> args;
-    args.push_back(ptr);
-    args.push_back(value);
-    args.push_back(mask);
     llvm::Value *inst = CallInst(scatterFunc, NULL, args);
 
     if (disableGSWarningCount == 0)

@@ -2944,6 +2944,28 @@ declare <16 x i64> @llvm.masked.gather.v16i64.v16p0i64 (<16 x i64*>, i32 , <16 x
 declare <16 x float> @llvm.masked.gather.v16f32.v16p0f32 (<16 x float*>, i32, <16 x i1>, <16 x float>)
 declare <16 x double> @llvm.masked.gather.v16f64.v16p0f64 (<16 x double*>, i32, <16 x i1>, <16 x double>)
 
+
+declare void @llvm.masked.scatter.v4i8.v4p0i8(<4 x i8>, <4 x i8*>, i32, <4 x i1>)
+declare void @llvm.masked.scatter.v4i16.v4p0i16(<4 x i16>, <4 x i16*>, i32, <4 x i1>)
+declare void @llvm.masked.scatter.v4i32.v4p0i32(<4 x i32>, <4 x i32*>, i32, <4 x i1>)
+declare void @llvm.masked.scatter.v4i64.v4p0i64 (<4 x i64>, <4 x i64*>, i32 , <4 x i1>)
+declare void @llvm.masked.scatter.v4f32.v4p0f32 (<4 x float>, <4 x float*>, i32, <4 x i1>)
+declare void @llvm.masked.scatter.v4f64.v4p0f64 (<4 x double>, <4 x double*>, i32, <4 x i1>)
+
+declare void @llvm.masked.scatter.v8i8.v8p0i8(<8 x i8>, <8 x i8*>, i32, <8 x i1>)
+declare void @llvm.masked.scatter.v8i16.v8p0i16(<8 x i16>, <8 x i16*>, i32, <8 x i1>)
+declare void @llvm.masked.scatter.v8i32.v8p0i32(<8 x i32>, <8 x i32*>, i32, <8 x i1>)
+declare void @llvm.masked.scatter.v8i64.v8p0i64 (<8 x i64>, <8 x i64*>, i32 , <8 x i1>)
+declare void @llvm.masked.scatter.v8f32.v8p0f32 (<8 x float>, <8 x float*>, i32, <8 x i1>)
+declare void @llvm.masked.scatter.v8f64.v8p0f64 (<8 x double>, <8 x double*>, i32, <8 x i1>)
+
+declare void @llvm.masked.scatter.v16i8.v16p0i8 (<16 x i8>, <16 x i8*>, i32, <16 x i1>)
+declare void @llvm.masked.scatter.v16i16.v16p0i16(<16 x i16>, <16 x i16*>, i32, <16 x i1>)
+declare void @llvm.masked.scatter.v16i32.v16p0i32(<16 x i32>, <16 x i32*>, i32, <16 x i1>)
+declare void @llvm.masked.scatter.v16i64.v16p0i64 (<16 x i64>, <16 x i64*>, i32 , <16 x i1>)
+declare void @llvm.masked.scatter.v16f32.v16p0f32 (<16 x float>, <16 x float*>, i32, <16 x i1>)
+declare void @llvm.masked.scatter.v16f64.v16p0f64 (<16 x double>, <16 x double*>, i32, <16 x i1>)
+
 ; This function declares placeholder masked store functions for the
 ;  front-end to use.
 ;
