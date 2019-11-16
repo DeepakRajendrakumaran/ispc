@@ -1,5 +1,5 @@
 #
-#  Copyright (c) 2018-2019, Intel Corporation
+#  Copyright (c) 2019, Intel Corporation
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -31,45 +31,15 @@
 #   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# ispc examples CMakeLists.txt
+# ispc examples: structABIRules
 #
-cmake_minimum_required(VERSION 3.12)
-
-set (PROJECT_NAME ispc_examples)
-project(${PROJECT_NAME})
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddISPCExample.cmake)
-
-if(WIN32)
-    add_compile_definitions(WIN32)
-    add_compile_options(/EHsc)
-endif()
-
-if (ISPC_BUILD)
-    set (ISPC_EXECUTABLE $<TARGET_FILE:ispc>)
-    set (EXAMPLES_ROOT ${CMAKE_SOURCE_DIR}/examples)
-else()
-    find_program (ISPC_EXECUTABLE ispc)
-    if (NOT ISPC_EXECUTABLE)
-        message(FATAL_ERROR "Failed to find ispc" )
-    endif()
-    set (EXAMPLES_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
-endif()
-
-add_subdirectory(aobench)
-add_subdirectory(aobench_instrumented)
-add_subdirectory(deferred)
-add_subdirectory(gmres)
-add_subdirectory(mandelbrot)
-add_subdirectory(mandelbrot_tasks)
-add_subdirectory(noise)
-add_subdirectory(options)
-add_subdirectory(perfbench)
-add_subdirectory(rt)
-add_subdirectory(sgemm)
-add_subdirectory(simple)
-add_subdirectory(structABIRules)
-add_subdirectory(sort)
-add_subdirectory(stencil)
-add_subdirectory(volume_rendering)
-
+set (ISPC_SRC_NAME "structABIRules")
+set (TARGET_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/structABIRules_main.cpp)
+set (ISPC_IA_TARGETS "sse2-i32x4,sse4-i32x8,avx1-i32x8,avx2-i32x8,avx512knl-i32x16,avx512skx-i32x16" CACHE STRING "ISPC IA targets")
+set (ISPC_ARM_TARGETS "neon" CACHE STRING "ISPC ARM targets")
+add_ispc_example(NAME "structABIRules"
+              ISPC_IA_TARGETS ${ISPC_IA_TARGETS}
+              ISPC_ARM_TARGETS ${ISPC_ARM_TARGETS}
+              ISPC_SRC_NAME ${ISPC_SRC_NAME}
+              TARGET_SOURCES ${TARGET_SOURCES}
+              USE_COMMON_SETTINGS)
