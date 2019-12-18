@@ -2831,6 +2831,158 @@ static unsigned int lCalleeArgCount(llvm::Value *callee, const FunctionType *fun
     return ft->getNumParams();
 }
 
+llvm::Instruction *FunctionEmitContext::CallInstLoweringForWinX86_32ABI(llvm::Value *func, const FunctionType *funcType,
+                                                                        std::vector<llvm::Value *> &argVals,
+                                                                        const char *name) {
+
+    llvm::Instruction *ci = NULL;
+    const StructType *Initialst = CastType<StructType>(funcType->GetReturnType());
+    llvm::FunctionType *modFuncType = funcType->LLVMFunctionType(g->ctx);
+
+    llvm::Type *modStructType = modFuncType->getReturnType();
+    llvm::Value *initialCi = NULL;
+    int srctSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(modStructType);
+    int destSize = g->target->getDataLayout()->getTypeAllocSize(Initialst->LLVMType(g->ctx));
+    llvm::Value *structPtr = AllocaInst(Initialst->LLVMType(g->ctx));
+    if (modStructType->isVoidTy()) {
+        std::vector<llvm::Value *>::iterator iter = argVals.begin();
+        argVals.insert(iter, structPtr);
+        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+    } else if (srctSize > destSize) {
+        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        llvm::Value *retFromFunc = AllocaInst(initialCi->getType());
+        StoreInst(initialCi, retFromFunc);
+        if (Initialst->GetElementCount() == 1) {
+            llvm::Value *gep =
+                GetElementPtrInst(structPtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(Initialst));
+            MemcpyInst(gep, retFromFunc, LLVMInt64(destSize));
+        } else {
+            MemcpyInst(structPtr, retFromFunc, LLVMInt64(destSize));
+        }
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntegerTy()) ||
+               modStructType->isStructTy() ||
+               (modStructType->isVectorTy() && modStructType->getScalarType()->isFloatTy())) {
+        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        llvm::Value *retStrTransform = NULL;
+        if (Initialst->GetElementCount() == 1) {
+            retStrTransform =
+                GetElementPtrInst(structPtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(Initialst));
+            llvm::Type *elementType = Initialst->GetElementType(0)->LLVMType(g->ctx);
+            if (elementType->isFloatTy() || elementType->isDoubleTy()) {
+                retStrTransform = BitCastInst(retStrTransform, llvm::PointerType::get(modStructType, 0));
+            }
+        } else {
+            retStrTransform = BitCastInst(structPtr, llvm::PointerType::get(initialCi->getType(), 0));
+        }
+        StoreInst(initialCi, retStrTransform);
+
+    } else {
+        UNREACHABLE();
+    }
+    ci = new llvm::LoadInst(structPtr, name ? name : "", bblock);
+    // Copy noalias attribute to call instruction, to enable better
+    // alias analysis.
+    // TODO: what other attributes needs to be copied?
+    // TODO: do the same for varing path.
+    llvm::CallInst *cc = llvm::dyn_cast<llvm::CallInst>(initialCi);
+    if (cc && cc->getCalledFunction() && cc->getCalledFunction()->returnDoesNotAlias()) {
+        cc->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::NoAlias);
+    }
+
+    AddDebugPos(initialCi);
+    return ci;
+}
+
+llvm::Instruction *FunctionEmitContext::CallInstLoweringForX86_32ABI(llvm::Value *func, const FunctionType *funcType,
+                                                                     std::vector<llvm::Value *> &argVals,
+                                                                     const char *name) {
+
+    llvm::Instruction *ci = NULL;
+    const StructType *Initialst = CastType<StructType>(funcType->GetReturnType());
+    llvm::FunctionType *modFuncType = funcType->LLVMFunctionType(g->ctx);
+
+    llvm::Type *modStructType = modFuncType->getReturnType();
+    llvm::Value *initialCi = NULL;
+    if (modStructType->isVoidTy()) {
+        llvm::Value *retArg = AllocaInst(Initialst->LLVMType(g->ctx));
+        std::vector<llvm::Value *>::iterator iter = argVals.begin();
+        argVals.insert(iter, retArg);
+        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        ci = new llvm::LoadInst(retArg, name, bblock);
+    } else {
+        UNREACHABLE();
+    }
+    // Copy noalias attribute to call instruction, to enable better
+    // alias analysis.
+    // TODO: what other attributes needs to be copied?
+    // TODO: do the same for varing path.
+    llvm::CallInst *cc = llvm::dyn_cast<llvm::CallInst>(initialCi);
+    if (cc && cc->getCalledFunction() && cc->getCalledFunction()->returnDoesNotAlias()) {
+        cc->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::NoAlias);
+    }
+
+    AddDebugPos(initialCi);
+    return ci;
+}
+
+llvm::Instruction *FunctionEmitContext::CallInstLoweringForX86_64ABI(llvm::Value *func, const FunctionType *funcType,
+                                                                     std::vector<llvm::Value *> &argVals,
+                                                                     const char *name) {
+
+    llvm::Instruction *ci = NULL;
+    const StructType *Initialst = CastType<StructType>(funcType->GetReturnType());
+    llvm::FunctionType *modFuncType = funcType->LLVMFunctionType(g->ctx);
+
+    llvm::Type *modStructType = modFuncType->getReturnType();
+    llvm::Value *initialCi = NULL;
+    int srctSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(modStructType);
+    int destSize = g->target->getDataLayout()->getTypeAllocSize(Initialst->LLVMType(g->ctx));
+    llvm::Value *structPtr = AllocaInst(Initialst->LLVMType(g->ctx));
+    if (modStructType->isVoidTy()) {
+        std::vector<llvm::Value *>::iterator iter = argVals.begin();
+        argVals.insert(iter, structPtr);
+        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+    } else if (srctSize > destSize) {
+        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        llvm::Value *retFromFunc = AllocaInst(initialCi->getType());
+        StoreInst(initialCi, retFromFunc);
+        if (Initialst->GetElementCount() == 1) {
+            llvm::Value *gep =
+                GetElementPtrInst(structPtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(Initialst));
+            MemcpyInst(gep, retFromFunc, LLVMInt64(destSize));
+        } else {
+            MemcpyInst(structPtr, retFromFunc, LLVMInt64(destSize));
+        }
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntegerTy()) ||
+               modStructType->isStructTy() ||
+               (modStructType->isVectorTy() && modStructType->getScalarType()->isFloatTy())) {
+        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        llvm::Value *retStrTransform = NULL;
+        if (Initialst->GetElementCount() == 1) {
+            retStrTransform =
+                GetElementPtrInst(structPtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(Initialst));
+        } else {
+            retStrTransform = BitCastInst(structPtr, llvm::PointerType::get(initialCi->getType(), 0));
+        }
+        StoreInst(initialCi, retStrTransform);
+
+    } else {
+        UNREACHABLE();
+    }
+    ci = new llvm::LoadInst(structPtr, name ? name : "", bblock);
+    // Copy noalias attribute to call instruction, to enable better
+    // alias analysis.
+    // TODO: what other attributes needs to be copied?
+    // TODO: do the same for varing path.
+    llvm::CallInst *cc = llvm::dyn_cast<llvm::CallInst>(initialCi);
+    if (cc && cc->getCalledFunction() && cc->getCalledFunction()->returnDoesNotAlias()) {
+        cc->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::NoAlias);
+    }
+
+    AddDebugPos(initialCi);
+    return ci;
+}
+
 llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType *funcType,
                                            const std::vector<llvm::Value *> &args, const char *name) {
     if (func == NULL) {
@@ -2843,26 +2995,57 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
     // isn't the case for things like intrinsics, builtins, and extern "C"
     // functions from the application.  Add the mask if it's needed.
     unsigned int calleeArgCount = lCalleeArgCount(func, funcType);
+    if (funcType && funcType->HasRetValHiddenAsArg())
+        --calleeArgCount;
     AssertPos(currentPos, argVals.size() + 1 == calleeArgCount || argVals.size() == calleeArgCount);
     if (argVals.size() + 1 == calleeArgCount)
         argVals.push_back(GetFullMask());
 
+    llvm::Instruction *ci = NULL;
     if (llvm::isa<llvm::VectorType>(func->getType()) == false) {
         // Regular 'uniform' function call--just one function or function
         // pointer, so just emit the IR directly.
-        llvm::Instruction *ci = llvm::CallInst::Create(func, argVals, name ? name : "", bblock);
+        //
+        if (funcType && CastType<StructType>(funcType->GetReturnType()) &&
+            funcType->RecursiveCheckValidParamType(funcType->GetReturnType(), false)) {
 
-        // Copy noalias attribute to call instruction, to enable better
-        // alias analysis.
-        // TODO: what other attributes needs to be copied?
-        // TODO: do the same for varing path.
-        llvm::CallInst *cc = llvm::dyn_cast<llvm::CallInst>(ci);
-        if (cc && cc->getCalledFunction() && cc->getCalledFunction()->returnDoesNotAlias()) {
-            cc->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::NoAlias);
+            switch (g->target->getABI()) {
+
+                // Add additional logic For unsupported ABIs. Currently using
+                // x86-64 as default
+            case Target::ABI::X86_64ABI:
+            case Target::ABI::WinX86_64ABI:
+            case Target::ABI::AArch64ABI:
+            case Target::ABI::ARMABI:
+                ci = CallInstLoweringForX86_64ABI(func, funcType, argVals, name);
+                break;
+            case Target::ABI::X86_32ABI:
+                ci = CallInstLoweringForX86_32ABI(func, funcType, argVals, name);
+                break;
+            case Target::ABI::WinX86_32ABI:
+                ci = CallInstLoweringForWinX86_32ABI(func, funcType, argVals, name);
+                break;
+            default:
+                UNREACHABLE();
+            }
+
+            return ci;
+
+        } else {
+            ci = llvm::CallInst::Create(func, argVals, name ? name : "", bblock);
+
+            // Copy noalias attribute to call instruction, to enable better
+            // alias analysis.
+            // TODO: what other attributes needs to be copied?
+            // TODO: do the same for varing path.
+            llvm::CallInst *cc = llvm::dyn_cast<llvm::CallInst>(ci);
+            if (cc && cc->getCalledFunction() && cc->getCalledFunction()->returnDoesNotAlias()) {
+                cc->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::NoAlias);
+            }
+
+            AddDebugPos(ci);
+            return ci;
         }
-
-        AddDebugPos(ci);
-        return ci;
     } else {
         // Emit the code for a varying function call, where we have an
         // vector of function pointers, one for each program instance.  The
@@ -2995,6 +3178,126 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
     return CallInst(func, funcType, args, name);
 }
 
+llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForX86_64ABI() {
+
+    llvm::Instruction *rinst = NULL;
+    llvm::Value *retStrTransform = NULL;
+
+    const StructType *st = CastType<StructType>(function->GetReturnType());
+    llvm::Type *modStructType = llvmFunction->getReturnType();
+    int destSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(modStructType);
+    int srcSize = g->target->getDataLayout()->getTypeAllocSize(st->LLVMType(g->ctx));
+    if (modStructType->isVoidTy()) {
+        llvm::Value *structVal = LoadInst(returnValuePtr, "return_value");
+        StoreInst(structVal, llvmFunction->arg_begin());
+        rinst = llvm::ReturnInst::Create(*g->ctx, bblock);
+    } else if (destSize > srcSize && (st->GetElementCount() == 1)) {
+
+        llvm::Value *retStrTransform_dst = AllocaInst(modStructType);
+        llvm::Value *gep = GetElementPtrInst(returnValuePtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(st));
+        MemcpyInst(retStrTransform_dst, gep, LLVMInt64(srcSize));
+        llvm::Value *retVal = LoadInst(retStrTransform_dst, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else if (destSize > srcSize) {
+
+        llvm::Value *retStrTransform_dst = AllocaInst(modStructType);
+        MemcpyInst(retStrTransform_dst, returnValuePtr, LLVMInt64(srcSize));
+        llvm::Value *retVal = LoadInst(retStrTransform_dst, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntOrPtrTy()) &&
+               (st->GetElementCount() == 1)) {
+
+        llvm::Value *gep = GetElementPtrInst(returnValuePtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(st));
+        llvm::Value *retVal = LoadInst(gep, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntegerTy()) ||
+               modStructType->isStructTy() ||
+               (modStructType->isVectorTy() && modStructType->getScalarType()->isFloatTy())) {
+
+        retStrTransform = BitCastInst(returnValuePtr, llvm::PointerType::get(modStructType, 0));
+        llvm::Value *retVal = LoadInst(retStrTransform, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else {
+        UNREACHABLE();
+    }
+
+    return rinst;
+}
+
+llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForX86_32ABI() {
+
+    llvm::Instruction *rinst = NULL;
+    llvm::Type *modStructType = llvmFunction->getReturnType();
+    if (modStructType->isVoidTy()) {
+        llvm::Value *structVal = LoadInst(returnValuePtr, "return_value");
+        StoreInst(structVal, llvmFunction->arg_begin());
+        rinst = llvm::ReturnInst::Create(*g->ctx, bblock);
+    } else {
+        UNREACHABLE();
+    }
+
+    return rinst;
+}
+
+llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForWinX86_32ABI() {
+
+    llvm::Instruction *rinst = NULL;
+    llvm::Value *retStrTransform = NULL;
+
+    const StructType *st = CastType<StructType>(function->GetReturnType());
+    llvm::Type *modStructType = llvmFunction->getReturnType();
+    int destSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(modStructType);
+    int srcSize = g->target->getDataLayout()->getTypeAllocSize(st->LLVMType(g->ctx));
+    if (modStructType->isVoidTy()) {
+        llvm::Value *structVal = LoadInst(returnValuePtr, "return_value");
+        StoreInst(structVal, llvmFunction->arg_begin());
+        rinst = llvm::ReturnInst::Create(*g->ctx, bblock);
+    } else if (destSize > srcSize && (st->GetElementCount() == 1)) {
+
+        assert(0);
+        llvm::Value *retStrTransform_dst = AllocaInst(modStructType);
+        llvm::Value *gep = GetElementPtrInst(returnValuePtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(st));
+        MemcpyInst(retStrTransform_dst, gep, LLVMInt64(srcSize));
+        llvm::Value *retVal = LoadInst(retStrTransform_dst, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else if (destSize > srcSize) {
+
+        llvm::Value *retStrTransform_dst = AllocaInst(modStructType);
+        MemcpyInst(retStrTransform_dst, returnValuePtr, LLVMInt64(srcSize));
+        llvm::Value *retVal = LoadInst(retStrTransform_dst, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntOrPtrTy()) &&
+               (st->GetElementCount() == 1)) {
+
+        llvm::Value *gep = GetElementPtrInst(returnValuePtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(st));
+        llvm::Type *elementType = st->GetElementType(0)->LLVMType(g->ctx);
+        if (elementType->isFloatTy() || elementType->isDoubleTy()) {
+            gep = BitCastInst(gep, llvm::PointerType::get(modStructType, 0));
+        }
+        llvm::Value *retVal = LoadInst(gep, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntegerTy()) ||
+               modStructType->isStructTy() ||
+               (modStructType->isVectorTy() && modStructType->getScalarType()->isFloatTy())) {
+
+        retStrTransform = BitCastInst(returnValuePtr, llvm::PointerType::get(modStructType, 0));
+        llvm::Value *retVal = LoadInst(retStrTransform, "return_value");
+        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+
+    } else {
+        UNREACHABLE();
+    }
+
+    return rinst;
+}
+
 llvm::Instruction *FunctionEmitContext::ReturnInst() {
     if (launchedTasks)
         // Add a sync call at the end of any function that launched tasks
@@ -3004,8 +3307,33 @@ llvm::Instruction *FunctionEmitContext::ReturnInst() {
     if (returnValuePtr != NULL) {
         // We have value(s) to return; load them from their storage
         // location
-        llvm::Value *retVal = LoadInst(returnValuePtr, "return_value");
-        rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+        const StructType *st = CastType<StructType>(function->GetReturnType());
+        if (st && function->GetType()->RecursiveCheckValidParamType(st, false)) {
+
+            switch (g->target->getABI()) {
+
+                // Add additional logic For unsupported ABIs. Currently using
+                // x86-64 as default
+            case Target::ABI::X86_64ABI:
+            case Target::ABI::WinX86_64ABI:
+            case Target::ABI::AArch64ABI:
+            case Target::ABI::ARMABI:
+                rinst = ReturnInstLoweringForX86_64ABI();
+                break;
+            case Target::ABI::X86_32ABI:
+                rinst = ReturnInstLoweringForX86_32ABI();
+                break;
+            case Target::ABI::WinX86_32ABI:
+                rinst = ReturnInstLoweringForWinX86_32ABI();
+                break;
+            default:
+                UNREACHABLE();
+            }
+
+        } else {
+            llvm::Value *retVal = LoadInst(returnValuePtr, "return_value");
+            rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
+        }
     } else {
         AssertPos(currentPos, function->GetReturnType()->IsVoidType());
         rinst = llvm::ReturnInst::Create(*g->ctx, bblock);

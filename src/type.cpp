@@ -2420,12 +2420,320 @@ const std::string FunctionType::GetReturnTypeString() const {
     return ret + returnType->GetString();
 }
 
+// Borrowed fom static function lRecursiveCheckValidParamType from module.cpp
+bool FunctionType::RecursiveCheckValidParamType(const Type *t, bool vectorOk) const {
+    const StructType *st = CastType<StructType>(t);
+    if (st != NULL) {
+        for (int i = 0; i < st->GetElementCount(); ++i)
+            if (!RecursiveCheckValidParamType(st->GetElementType(i), vectorOk))
+                return false;
+        return true;
+    }
+
+    // Vector types are also not supported, pending ispc properly
+    // supporting the platform ABI.  (Pointers to vector types are ok,
+    // though.)  (https://github.com/ispc/ispc/issues/363)...
+    if (vectorOk == false && CastType<VectorType>(t) != NULL)
+        return false;
+
+    const SequentialType *seqt = CastType<SequentialType>(t);
+    if (seqt != NULL)
+        return RecursiveCheckValidParamType(seqt->GetElementType(), vectorOk);
+
+    const PointerType *pt = CastType<PointerType>(t);
+    if (pt != NULL) {
+        // Only allow exported uniform pointers
+        // Uniform pointers to varying data, however, are ok.
+        if (pt->IsVaryingType())
+            return false;
+        else
+            return RecursiveCheckValidParamType(pt->GetBaseType(), true);
+    }
+
+    if (t->IsVaryingType() && !vectorOk)
+        return false;
+    else
+        return true;
+}
+
+bool FunctionType::HasRetValHiddenAsArg() const {
+
+    bool ret = false;
+    if (CastType<StructType>(returnType) && RecursiveCheckValidParamType(returnType, false)) {
+        if (GetStructRetType(g->ctx, returnType) == NULL)
+            ret = true;
+    }
+    return ret;
+}
+
+void FunctionType::FindClassForSplits(llvm::LLVMContext *ctx, const Type *type, ABIClass &low, ABIClass &high,
+                                      int &offset, std::queue<llvm::Type *> &pointerTypes) const {
+
+    if (const AtomicType *atype = CastType<AtomicType>(type)) {
+        if (atype->IsUniformType()) {
+            switch (atype->basicType) {
+            case AtomicType::TYPE_VOID:
+                UNREACHABLE();
+            case AtomicType::TYPE_BOOL:
+                UNREACHABLE();
+            case AtomicType::TYPE_INT8:
+            case AtomicType::TYPE_UINT8:
+            case AtomicType::TYPE_INT16:
+            case AtomicType::TYPE_UINT16:
+            case AtomicType::TYPE_INT32:
+            case AtomicType::TYPE_UINT32:
+            case AtomicType::TYPE_INT64:
+            case AtomicType::TYPE_UINT64: {
+                if (offset < 8) {
+                    low = ABIClass::Integer;
+                } else {
+                    high = ABIClass::Integer;
+                }
+
+            } break;
+
+            case AtomicType::TYPE_FLOAT: {
+                if (offset < 8) {
+                    if (low == ABIClass::NoClass)
+                        low = ABIClass::fVector;
+                } else {
+                    if (high == ABIClass::NoClass)
+                        high = ABIClass::fVector;
+                }
+
+            } break;
+            case AtomicType::TYPE_DOUBLE: {
+                if (offset < 8) {
+                    if (low == ABIClass::NoClass)
+                        low = ABIClass::dVector;
+                } else {
+                    if (high == ABIClass::NoClass)
+                        high = ABIClass::dVector;
+                }
+
+            } break;
+            default:
+                UNREACHABLE();
+            }
+        } else
+            UNREACHABLE();
+
+        return;
+    }
+
+    if (const PointerType *pType = CastType<PointerType>(type)) {
+        if (pType->IsUniformType()) {
+            int pSize = g->target->getDataLayout()->getTypeAllocSize(pType->LLVMType(g->ctx));
+            pointerTypes.push(pType->LLVMType(g->ctx));
+            // Remove condition??
+            if ((pSize == 8) || (pSize == 4)) {
+                if (offset == 0)
+                    low = ABIClass::Pointer;
+                else if (offset == 4)
+                    low = ABIClass::Integer;
+                else
+                    high = ABIClass::Pointer;
+
+            } else
+                UNREACHABLE();
+
+        } else
+            UNREACHABLE();
+
+        return;
+    }
+
+    if (const ArrayType *aType = CastType<ArrayType>(type)) {
+        if (aType->IsUniformType()) {
+            const Type *baseType = aType->GetElementType();
+            int baseSize = g->target->getDataLayout()->getTypeAllocSize(baseType->LLVMType(g->ctx));
+            int arraySize = aType->GetElementCount();
+            for (int i = 0; i < arraySize; i++) {
+                FindClassForSplits(ctx, baseType, low, high, offset, pointerTypes);
+                offset = offset + baseSize;
+            }
+        } else
+            UNREACHABLE();
+        return;
+    }
+
+    if (const StructType *sType = CastType<StructType>(type)) {
+        if (sType->IsUniformType()) {
+            const Type *t = NULL;
+            llvm::StructType *structType = llvm::dyn_cast<llvm::StructType>(type->LLVMType(g->ctx));
+            const llvm::StructLayout *sl = g->target->getDataLayout()->getStructLayout(structType);
+            for (int i = 0; i < sType->GetElementCount(); ++i) {
+                int currStructOffset = sl->getElementOffset((unsigned)i) + offset;
+                t = sType->GetElementType(i);
+                FindClassForSplits(ctx, t, low, high, currStructOffset, pointerTypes);
+            }
+        } else
+            UNREACHABLE();
+
+        return;
+    }
+}
+
+llvm::Type *FunctionType::GetStructRetTypeWinX86_32ABI(llvm::LLVMContext *ctx, const Type *type) const {
+
+    llvm::Type *llvmReturnType = NULL;
+    int sizeInBytes = g->target->getDataLayout()->getTypeAllocSize(type->LLVMType(ctx));
+
+    std::vector<llvm::Type *> elementTypes;
+
+    if (sizeInBytes > 8) {
+        // Pass as argument
+        return llvmReturnType;
+    }
+
+    ABIClass high = ABIClass::NoClass;
+    ABIClass low = ABIClass::NoClass;
+    int offset = 0;
+
+    std::queue<llvm::Type *> pointerTypes;
+    FindClassForSplits(ctx, type, low, high, offset, pointerTypes);
+
+    if (high != ABIClass::NoClass) {
+        UNREACHABLE();
+    }
+    if ((low == ABIClass::Integer) || (low == ABIClass::fVector) || (low == ABIClass::dVector)) {
+
+        llvmReturnType = llvm::Type::getIntNTy(*g->ctx, sizeInBytes * 8);
+        if (g->target->getDataLayout()->getTypeAllocSize(llvmReturnType) > sizeInBytes)
+            llvmReturnType = NULL;
+
+    } else if (low == ABIClass::Pointer) {
+        llvmReturnType = pointerTypes.front();
+        pointerTypes.pop();
+    } else
+        UNREACHABLE();
+
+    return llvmReturnType;
+}
+
+llvm::Type *FunctionType::GetStructRetTypeX86_64ABI(llvm::LLVMContext *ctx, const Type *type) const {
+
+    llvm::Type *llvmReturnType = NULL;
+    int sizeInBytes = g->target->getDataLayout()->getTypeAllocSize(type->LLVMType(ctx));
+
+    std::vector<llvm::Type *> elementTypes;
+
+    if (sizeInBytes > 16) {
+        // Pass as argument
+        return llvmReturnType;
+    }
+
+    ABIClass high = ABIClass::NoClass;
+    ABIClass low = ABIClass::NoClass;
+    int offset = 0;
+
+    std::queue<llvm::Type *> pointerTypes;
+    FindClassForSplits(ctx, type, low, high, offset, pointerTypes);
+
+    unsigned int halfSize = (sizeInBytes >= 8) ? 8 : sizeInBytes;
+    if (low == ABIClass::Integer) {
+
+        llvmReturnType = llvm::Type::getIntNTy(*g->ctx, halfSize * 8);
+
+    } else if (low == ABIClass::fVector) {
+        if (halfSize > 4)
+            llvmReturnType = llvm::VectorType::get(LLVMTypes::FloatType, 2);
+        else
+            llvmReturnType = LLVMTypes::FloatType;
+
+    } else if (low == ABIClass::dVector) {
+        llvmReturnType = LLVMTypes::DoubleType;
+
+    } else if (low == ABIClass::Pointer) {
+        llvmReturnType = pointerTypes.front();
+        pointerTypes.pop();
+    } else
+        UNREACHABLE();
+
+    if (sizeInBytes <= 8) {
+
+        return llvmReturnType;
+    }
+
+    elementTypes.push_back(llvmReturnType);
+
+    halfSize = (sizeInBytes == 16) ? 8 : (sizeInBytes % 8);
+    if (high == ABIClass::Integer) {
+        llvmReturnType = llvm::Type::getIntNTy(*g->ctx, halfSize * 8);
+    } else if (high == ABIClass::fVector) {
+        if (halfSize > 4)
+            llvmReturnType = llvm::VectorType::get(LLVMTypes::FloatType, 2);
+        else
+            llvmReturnType = LLVMTypes::FloatType;
+
+    } else if (high == ABIClass::dVector) {
+        llvmReturnType = LLVMTypes::DoubleType;
+    } else if (high == ABIClass::Pointer) {
+        llvmReturnType = pointerTypes.front();
+    } else
+        UNREACHABLE();
+
+    elementTypes.push_back(llvmReturnType);
+
+    llvmReturnType = llvm::StructType::create(*g->ctx, elementTypes);
+
+    return llvmReturnType;
+}
+
+llvm::Type *FunctionType::GetStructRetType(llvm::LLVMContext *ctx, const Type *type) const {
+
+    llvm::Type *llvmReturnType = NULL;
+
+    switch (g->target->getABI()) {
+
+        // Add additional logic For unsupported ABIs. Currently using
+        // x86-64 as default
+    case Target::ABI::X86_64ABI:
+    case Target::ABI::WinX86_64ABI:
+    case Target::ABI::AArch64ABI:
+    case Target::ABI::ARMABI:
+        llvmReturnType = GetStructRetTypeX86_64ABI(ctx, type);
+        break;
+    case Target::ABI::X86_32ABI:
+        break;
+    case Target::ABI::WinX86_32ABI:
+        llvmReturnType = GetStructRetTypeWinX86_32ABI(ctx, type);
+        break;
+    default:
+        UNREACHABLE();
+    }
+
+    return llvmReturnType;
+}
+
 llvm::FunctionType *FunctionType::LLVMFunctionType(llvm::LLVMContext *ctx, bool removeMask) const {
     if (isTask == true)
         Assert(removeMask == false);
 
+    llvm::Type *llvmReturnType = NULL;
     // Get the LLVM Type *s for the function arguments
     std::vector<llvm::Type *> llvmArgTypes;
+    // Handle struct return by value cases where function can be exported.
+    // Have to follow ABI rules for these.
+    if (CastType<StructType>(returnType) && RecursiveCheckValidParamType(returnType, false)) {
+
+        llvmReturnType = GetStructRetType(ctx, returnType);
+        if (!llvmReturnType) {
+
+            llvmReturnType = LLVMTypes::VoidType;
+            llvmArgTypes.push_back(llvm::PointerType::get(returnType->LLVMType(g->ctx), 0));
+        }
+    }
+
+    // Revisit- Not following ABI rules currently since not interfacing with
+    // clang created code.
+    else {
+        llvmReturnType = returnType->LLVMType(g->ctx);
+    }
+
+    if (llvmReturnType == NULL)
+        return NULL;
+
     for (unsigned int i = 0; i < paramTypes.size(); ++i) {
         if (paramTypes[i] == NULL) {
             Assert(m->errorCount > 0);
@@ -2472,10 +2780,6 @@ llvm::FunctionType *FunctionType::LLVMFunctionType(llvm::LLVMContext *ctx, bool 
         Assert(m->errorCount > 0);
         return NULL;
     }
-
-    llvm::Type *llvmReturnType = returnType->LLVMType(g->ctx);
-    if (llvmReturnType == NULL)
-        return NULL;
 
     return llvm::FunctionType::get(llvmReturnType, callTypes, false);
 }

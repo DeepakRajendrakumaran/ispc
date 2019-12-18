@@ -212,7 +212,9 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
     llvm::BasicBlock *entryBBlock = ctx->GetCurrentBasicBlock();
 #endif
     const FunctionType *type = CastType<FunctionType>(sym->type);
+
     Assert(type != NULL);
+
     if (type->isTask == true) {
         // For tasks, there should always be three parameters: the
         // pointer to the structure that holds all of the arguments, the
@@ -276,6 +278,11 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
     } else {
         // Regular, non-task function
         llvm::Function::arg_iterator argIter = function->arg_begin();
+        // Skip past first argument if return type is passed as hidden
+        // argument.
+        if (type->HasRetValHiddenAsArg()) {
+            ++argIter;
+        }
         for (unsigned int i = 0; i < args.size(); ++i, ++argIter) {
             Symbol *sym = args[i];
             if (sym == NULL)
@@ -350,6 +357,7 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
             if (!g->opt.disableMaskAllOnOptimizations)
                 ctx->SetFunctionMask(LLVMMaskAllOn);
             code->EmitCode(ctx);
+
             if (ctx->GetCurrentBasicBlock())
                 ctx->ReturnInst();
 
@@ -464,6 +472,9 @@ void Function::GenerateIR() {
                 for (int i = 0; i < function->getFunctionType()->getNumParams() - 1; i++) {
                     if (function->hasParamAttribute(i, llvm::Attribute::NoAlias)) {
                         appFunction->addParamAttr(i, llvm::Attribute::NoAlias);
+                    }
+                    if (function->hasParamAttribute(i, llvm::Attribute::StructRet)) {
+                        appFunction->addParamAttr(i, llvm::Attribute::StructRet);
                     }
                 }
                 g->target->markFuncWithTargetAttr(appFunction);

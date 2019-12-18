@@ -1147,6 +1147,79 @@ std::string Target::SupportedOSes() {
     return result;
 }
 
+Target::ABI Target::getABI() const {
+
+    Target::ABI abi;
+    switch (g->target_os) {
+    case TargetOS::windows:
+        if (m_arch == Arch::x86) {
+            abi = ABI::WinX86_32ABI;
+        } else if (m_arch == Arch::x86_64) {
+            abi = ABI::WinX86_64ABI;
+        } else {
+            UNREACHABLE();
+        }
+        break;
+    case TargetOS::linux:
+        if (m_arch == Arch::x86) {
+            abi = ABI::X86_32ABI;
+        } else if (m_arch == Arch::x86_64) {
+            abi = ABI::X86_64ABI;
+        } else if (m_arch == Arch::arm) {
+            abi = ABI::ARMABI;
+        } else if (m_arch == Arch::aarch64) {
+            abi = ABI::AArch64ABI;
+        } else {
+            UNREACHABLE();
+        }
+        break;
+    case TargetOS::macos:
+        // asserts
+        if (m_arch != Arch::x86_64) {
+            UNREACHABLE();
+        }
+        // Add new ABI after testing on MACOS. Currently using "linux x86-64"
+        // as default
+        abi = ABI::X86_64ABI;
+        break;
+    case TargetOS::android:
+        // Add new ABI after testing on ps4. Currently using "linux"
+        // as default
+        if (m_arch == Arch::x86) {
+            abi = ABI::X86_32ABI;
+        } else if (m_arch == Arch::x86_64) {
+            abi = ABI::X86_64ABI;
+        } else if (m_arch == Arch::arm) {
+            abi = ABI::ARMABI;
+        } else if (m_arch == Arch::aarch64) {
+            abi = ABI::AArch64ABI;
+        } else {
+            UNREACHABLE();
+        }
+        break;
+    case TargetOS::ios:
+        if (m_arch != Arch::aarch64) {
+            UNREACHABLE();
+        }
+        // Note, for iOS arch need to be set to "arm64", instead of "aarch64".
+        // Internet say this is for historical reasons.
+        // "arm64-apple-ios"
+        abi = ABI::AArch64ABI;
+        break;
+    case TargetOS::ps4:
+        if (m_arch != Arch::x86_64) {
+            UNREACHABLE();
+        }
+        // Add new ABI after testing on ps4. Currently using "linux x86-64"
+        // as default
+        abi = ABI::X86_64ABI;
+        break;
+    default:
+        UNREACHABLE();
+    }
+
+    return abi;
+}
 std::string Target::GetTripleString() const {
     llvm::Triple triple;
     switch (g->target_os) {

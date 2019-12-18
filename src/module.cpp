@@ -693,6 +693,15 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
     // and do other checks and parameter attribute setting.
     bool seenDefaultArg = false;
     int nArgs = functionType->GetNumParameters();
+    // Check if we are passing the return type as a hidden argument.
+    // If yes, skip past it for adding attributes.
+    int paramPos = 0;
+    if (functionType->HasRetValHiddenAsArg()) {
+        function->addParamAttr(paramPos, llvm::Attribute::NoAlias);
+        function->addParamAttr(paramPos, llvm::Attribute::StructRet);
+        paramPos++;
+    }
+
     for (int i = 0; i < nArgs; ++i) {
         const Type *argType = functionType->GetParameterType(i);
         const std::string &argName = functionType->GetParameterName(i);
@@ -717,7 +726,7 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
 
                                       CastType<ReferenceType>(argType) != NULL)) {
 
-            function->addParamAttr(i, llvm::Attribute::NoAlias);
+            function->addParamAttr(paramPos + i, llvm::Attribute::NoAlias);
 #if 0
             int align = 4 * RoundUpPow2(g->target->nativeVectorWidth);
             function->addAttribute(i+1, llvm::Attribute::constructAlignmentFromInt(align));

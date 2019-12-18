@@ -493,6 +493,12 @@ class FunctionEmitContext {
     llvm::PHINode *PhiNode(llvm::Type *type, int count, const char *name = NULL);
     llvm::Instruction *SelectInst(llvm::Value *test, llvm::Value *val0, llvm::Value *val1, const char *name = NULL);
 
+    llvm::Instruction *CallInstLoweringForX86_64ABI(llvm::Value *func, const FunctionType *funcType,
+                                                    std::vector<llvm::Value *> &args, const char *name);
+    llvm::Instruction *CallInstLoweringForX86_32ABI(llvm::Value *func, const FunctionType *funcType,
+                                                    std::vector<llvm::Value *> &args, const char *name);
+    llvm::Instruction *CallInstLoweringForWinX86_32ABI(llvm::Value *func, const FunctionType *funcType,
+                                                       std::vector<llvm::Value *> &args, const char *name);
     /** Emits IR to do a function call with the given arguments.  If the
         function type is a varying function pointer type, its full type
         must be provided in funcType.  funcType can be NULL if func is a
@@ -516,6 +522,12 @@ class FunctionEmitContext {
     void SyncInst();
 
     llvm::Instruction *ReturnInst();
+
+    llvm::Instruction *ReturnInstLoweringForX86_64ABI();
+
+    llvm::Instruction *ReturnInstLoweringForX86_32ABI();
+
+    llvm::Instruction *ReturnInstLoweringForWinX86_32ABI();
     /** @} */
 
   private:
