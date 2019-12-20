@@ -2844,7 +2844,7 @@ llvm::Instruction *FunctionEmitContext::CallInstLoweringForWinX86_32ABI(llvm::Va
     int srctSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(modStructType);
     int destSize = g->target->getDataLayout()->getTypeAllocSize(Initialst->LLVMType(g->ctx));
     llvm::Value *structPtr = AllocaInst(Initialst->LLVMType(g->ctx));
-    if (modStructType->isVoidTy()) {
+    if (funcType->HasRetValHiddenAsArg()) {
         std::vector<llvm::Value *>::iterator iter = argVals.begin();
         argVals.insert(iter, structPtr);
         initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
@@ -2899,11 +2899,8 @@ llvm::Instruction *FunctionEmitContext::CallInstLoweringForX86_32ABI(llvm::Value
 
     llvm::Instruction *ci = NULL;
     const StructType *Initialst = CastType<StructType>(funcType->GetReturnType());
-    llvm::FunctionType *modFuncType = funcType->LLVMFunctionType(g->ctx);
-
-    llvm::Type *modStructType = modFuncType->getReturnType();
     llvm::Value *initialCi = NULL;
-    if (modStructType->isVoidTy()) {
+    if (funcType->HasRetValHiddenAsArg()) {
         llvm::Value *retArg = AllocaInst(Initialst->LLVMType(g->ctx));
         std::vector<llvm::Value *>::iterator iter = argVals.begin();
         argVals.insert(iter, retArg);
@@ -2939,9 +2936,13 @@ llvm::Instruction *FunctionEmitContext::CallInstLoweringForX86_64ABI(llvm::Value
     int destSize = g->target->getDataLayout()->getTypeAllocSize(Initialst->LLVMType(g->ctx));
     llvm::Value *structPtr = AllocaInst(Initialst->LLVMType(g->ctx));
     if (modStructType->isVoidTy()) {
-        std::vector<llvm::Value *>::iterator iter = argVals.begin();
-        argVals.insert(iter, structPtr);
-        initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        if (funcType->HasRetValHiddenAsArg()) {
+            std::vector<llvm::Value *>::iterator iter = argVals.begin();
+            argVals.insert(iter, structPtr);
+            initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        } else {
+            initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
+        }
     } else if (srctSize > destSize) {
         initialCi = llvm::CallInst::Create(func, argVals, "", bblock);
         llvm::Value *retFromFunc = AllocaInst(initialCi->getType());
@@ -3186,8 +3187,8 @@ llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForX86_64ABI() {
     const StructType *st = CastType<StructType>(function->GetReturnType());
     llvm::Type *modStructType = llvmFunction->getReturnType();
     int destSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(modStructType);
-    int srcSize = g->target->getDataLayout()->getTypeAllocSize(st->LLVMType(g->ctx));
-    if (modStructType->isVoidTy()) {
+    int srcSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(st->LLVMType(g->ctx));
+    if (function->GetType()->HasRetValHiddenAsArg()) {
         llvm::Value *structVal = LoadInst(returnValuePtr, "return_value");
         StoreInst(structVal, llvmFunction->arg_begin());
         rinst = llvm::ReturnInst::Create(*g->ctx, bblock);
@@ -3206,7 +3207,8 @@ llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForX86_64ABI() {
         llvm::Value *retVal = LoadInst(retStrTransform_dst, "return_value");
         rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
 
-    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntOrPtrTy()) &&
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntegerTy() ||
+                modStructType->isPointerTy()) &&
                (st->GetElementCount() == 1)) {
 
         llvm::Value *gep = GetElementPtrInst(returnValuePtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(st));
@@ -3221,6 +3223,8 @@ llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForX86_64ABI() {
         llvm::Value *retVal = LoadInst(retStrTransform, "return_value");
         rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
 
+    } else if (modStructType->isVoidTy()) {
+        rinst = llvm::ReturnInst::Create(*g->ctx, bblock);
     } else {
         UNREACHABLE();
     }
@@ -3231,8 +3235,8 @@ llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForX86_64ABI() {
 llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForX86_32ABI() {
 
     llvm::Instruction *rinst = NULL;
-    llvm::Type *modStructType = llvmFunction->getReturnType();
-    if (modStructType->isVoidTy()) {
+    // llvm::Type *modStructType = llvmFunction->getReturnType();
+    if (function->GetType()->HasRetValHiddenAsArg()) {
         llvm::Value *structVal = LoadInst(returnValuePtr, "return_value");
         StoreInst(structVal, llvmFunction->arg_begin());
         rinst = llvm::ReturnInst::Create(*g->ctx, bblock);
@@ -3251,8 +3255,8 @@ llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForWinX86_32ABI() {
     const StructType *st = CastType<StructType>(function->GetReturnType());
     llvm::Type *modStructType = llvmFunction->getReturnType();
     int destSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(modStructType);
-    int srcSize = g->target->getDataLayout()->getTypeAllocSize(st->LLVMType(g->ctx));
-    if (modStructType->isVoidTy()) {
+    int srcSize = modStructType->isVoidTy() ? 0 : g->target->getDataLayout()->getTypeAllocSize(st->LLVMType(g->ctx));
+    if (function->GetType()->HasRetValHiddenAsArg()) {
         llvm::Value *structVal = LoadInst(returnValuePtr, "return_value");
         StoreInst(structVal, llvmFunction->arg_begin());
         rinst = llvm::ReturnInst::Create(*g->ctx, bblock);
@@ -3272,7 +3276,8 @@ llvm::Instruction *FunctionEmitContext::ReturnInstLoweringForWinX86_32ABI() {
         llvm::Value *retVal = LoadInst(retStrTransform_dst, "return_value");
         rinst = llvm::ReturnInst::Create(*g->ctx, retVal, bblock);
 
-    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntOrPtrTy()) &&
+    } else if ((modStructType->isFloatTy() || modStructType->isDoubleTy() || modStructType->isIntegerTy() ||
+                modStructType->isPointerTy()) &&
                (st->GetElementCount() == 1)) {
 
         llvm::Value *gep = GetElementPtrInst(returnValuePtr, LLVMInt32(0), LLVMInt32(0), PointerType::GetUniform(st));

@@ -904,6 +904,8 @@ class FunctionType : public Type {
 
     llvm::Type *GetStructRetType(llvm::LLVMContext *ctx, const Type *type) const;
 
+    llvm::Type *GetTypeForClassX86_64ABI(ABIClass aClass, std::queue<llvm::Type *> &pointerTypes,
+                                         unsigned int halfSize) const;
     llvm::Type *GetStructRetTypeX86_64ABI(llvm::LLVMContext *ctx, const Type *type) const;
 
     llvm::Type *GetStructRetTypeWinX86_32ABI(llvm::LLVMContext *ctx, const Type *type) const;
