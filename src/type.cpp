@@ -2629,8 +2629,38 @@ llvm::Type *FunctionType::GetStructRetTypeWinX86_32ABI(llvm::LLVMContext *ctx, c
     } else if (low == ABIClass::Pointer) {
         llvmReturnType = pointerTypes.front();
         pointerTypes.pop();
-    } else
+    } else if (low == ABIClass::NoClass) {
+        llvmReturnType = NULL;
+    } else {
         UNREACHABLE();
+    }
+
+    return llvmReturnType;
+}
+
+llvm::Type *FunctionType::GetTypeForClassX86_64ABI(ABIClass aClass, std::queue<llvm::Type *> &pointerTypes,
+                                                   unsigned int halfSize) const {
+
+    llvm::Type *llvmReturnType = NULL;
+    if (aClass == ABIClass::Integer) {
+        llvmReturnType = llvm::Type::getIntNTy(*g->ctx, halfSize * 8);
+    } else if (aClass == ABIClass::fVector) {
+        if (halfSize > 4)
+            llvmReturnType = llvm::VectorType::get(LLVMTypes::FloatType, 2);
+        else
+            llvmReturnType = LLVMTypes::FloatType;
+
+    } else if (aClass == ABIClass::dVector) {
+        llvmReturnType = LLVMTypes::DoubleType;
+
+    } else if (aClass == ABIClass::Pointer) {
+        llvmReturnType = pointerTypes.front();
+        pointerTypes.pop();
+    } else if (aClass == ABIClass::NoClass) {
+        llvmReturnType = LLVMTypes::VoidType;
+    } else {
+        UNREACHABLE();
+    }
 
     return llvmReturnType;
 }
@@ -2641,7 +2671,6 @@ llvm::Type *FunctionType::GetStructRetTypeX86_64ABI(llvm::LLVMContext *ctx, cons
     int sizeInBytes = g->target->getDataLayout()->getTypeAllocSize(type->LLVMType(ctx));
 
     std::vector<llvm::Type *> elementTypes;
-
     if (sizeInBytes > 16) {
         // Pass as argument
         return llvmReturnType;
@@ -2655,47 +2684,19 @@ llvm::Type *FunctionType::GetStructRetTypeX86_64ABI(llvm::LLVMContext *ctx, cons
     FindClassForSplits(ctx, type, low, high, offset, pointerTypes);
 
     unsigned int halfSize = (sizeInBytes >= 8) ? 8 : sizeInBytes;
-    if (low == ABIClass::Integer) {
+    llvmReturnType = GetTypeForClassX86_64ABI(low, pointerTypes, halfSize);
 
-        llvmReturnType = llvm::Type::getIntNTy(*g->ctx, halfSize * 8);
-
-    } else if (low == ABIClass::fVector) {
-        if (halfSize > 4)
-            llvmReturnType = llvm::VectorType::get(LLVMTypes::FloatType, 2);
-        else
-            llvmReturnType = LLVMTypes::FloatType;
-
-    } else if (low == ABIClass::dVector) {
-        llvmReturnType = LLVMTypes::DoubleType;
-
-    } else if (low == ABIClass::Pointer) {
-        llvmReturnType = pointerTypes.front();
-        pointerTypes.pop();
-    } else
-        UNREACHABLE();
-
-    if (sizeInBytes <= 8) {
-
+    if ((sizeInBytes <= 8) || (high == ABIClass::NoClass)) {
         return llvmReturnType;
     }
 
     elementTypes.push_back(llvmReturnType);
 
     halfSize = (sizeInBytes == 16) ? 8 : (sizeInBytes % 8);
-    if (high == ABIClass::Integer) {
-        llvmReturnType = llvm::Type::getIntNTy(*g->ctx, halfSize * 8);
-    } else if (high == ABIClass::fVector) {
-        if (halfSize > 4)
-            llvmReturnType = llvm::VectorType::get(LLVMTypes::FloatType, 2);
-        else
-            llvmReturnType = LLVMTypes::FloatType;
-
-    } else if (high == ABIClass::dVector) {
-        llvmReturnType = LLVMTypes::DoubleType;
-    } else if (high == ABIClass::Pointer) {
-        llvmReturnType = pointerTypes.front();
-    } else
-        UNREACHABLE();
+    llvmReturnType = GetTypeForClassX86_64ABI(high, pointerTypes, halfSize);
+    if (low == ABIClass::NoClass) {
+        return llvmReturnType;
+    }
 
     elementTypes.push_back(llvmReturnType);
 
@@ -2707,7 +2708,6 @@ llvm::Type *FunctionType::GetStructRetTypeX86_64ABI(llvm::LLVMContext *ctx, cons
 llvm::Type *FunctionType::GetStructRetType(llvm::LLVMContext *ctx, const Type *type) const {
 
     llvm::Type *llvmReturnType = NULL;
-
     switch (g->target->getABI()) {
 
         // Add additional logic For unsupported ABIs. Currently using
