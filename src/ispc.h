@@ -168,6 +168,8 @@ class Target {
         NUM_ISAS
     };
 
+    enum class ABI { X86_32ABI, X86_64ABI, WinX86_32ABI, WinX86_64ABI, ARMABI, AArch64ABI };
+
     /** Initializes the given Target pointer for a target of the given
         name, if the name is a known target.  Returns true if the
         target was initialized and false if the name is unknown. */
@@ -259,6 +261,8 @@ class Target {
     bool hasRcpd() const { return m_hasRcpd; }
 
     bool hasVecPrefetch() const { return m_hasVecPrefetch; }
+
+    ABI getABI() const;
 
   private:
     /** llvm Target object representing this target. */

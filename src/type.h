@@ -44,6 +44,8 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Type.h>
 
+#include <queue>
+
 class ConstExpr;
 class StructType;
 
@@ -894,6 +896,21 @@ class FunctionType : public Type {
     /** If non-negative, this provides a user-supplied override to the cost
         function estimate for the function. */
     int costOverride;
+
+    enum class ABIClass { Integer, Pointer, fVector, dVector, NoClass, Memory };
+
+    void FindClassForSplits(llvm::LLVMContext *ctx, const Type *type, ABIClass &low, ABIClass &high, int &offset,
+                            std::queue<llvm::Type *> &pointerTypes) const;
+
+    llvm::Type *GetStructRetType(llvm::LLVMContext *ctx, const Type *type) const;
+
+    llvm::Type *GetStructRetTypeX86_64ABI(llvm::LLVMContext *ctx, const Type *type) const;
+
+    llvm::Type *GetStructRetTypeWinX86_32ABI(llvm::LLVMContext *ctx, const Type *type) const;
+
+    bool HasRetValHiddenAsArg() const;
+
+    bool RecursiveCheckValidParamType(const Type *t, bool vectorOk) const;
 
   private:
     const Type *const returnType;
