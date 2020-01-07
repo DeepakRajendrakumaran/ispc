@@ -33,6 +33,13 @@
 
 enum enumforStruct { zero, one, two, three };
 
+struct empty {};
+
+struct structWithEmpty {
+    struct empty ee1;
+    int8 x;
+};
+
 struct structForStruct {
     float x;
     int y;
@@ -93,6 +100,14 @@ struct passAsArg {
     double *c;
 };
 
+struct nestedEmpty {
+    struct empty e1;
+    struct empty e2;
+    int16 a;
+    struct structWithEmpty b;
+    int8 c, d, e;
+};
+
 extern "C" uniform singleInteger getSingleIntegerStructFromCpp(uniform int int1);
 extern "C" uniform mulInteger getMulIntegerStructFromCpp(uniform int int1, uniform int int2, uniform int int3);
 extern "C" uniform singleFloat getSingleFloatStructFromCpp(uniform float f1);
@@ -110,6 +125,10 @@ extern "C" uniform withNestedStruct getWithNestedStructFromCpp(uniform int int1,
 extern "C" uniform withMixedElemsArray getWithMixedArrayElemStructFromCpp(uniform int int1, uniform float f_arr[3]);
 extern "C" uniform passAsArg getPassAsArgStructFromCpp(uniform int int1, uniform structForStruct *uniform struct1,
                                                        uniform double *uniform d1);
+extern "C" uniform nestedEmpty getWithNestedEmptyStructFromCpp(uniform int16 int16_1,
+                                                               uniform structWithEmpty *uniform struct1,
+                                                               uniform int8 int8_1, uniform int8 int8_2,
+                                                               uniform int8 int8_3);
 
 /* Functions called from the CPP side which returns a struct back to CPP.
  * Within this function, we also check returning from CPP to ISPC */
@@ -188,5 +207,15 @@ export uniform passAsArg getPassAsArgStructFromIspc(uniform int int1, uniform st
     *d_ptr = d1;
     uniform passAsArg struc = getPassAsArgStructFromCpp(int1, struct1, d_ptr);
     assert(struc.a == int1 && struc.b.x == struct1->x && struc.b.y == struct1->y && *struc.c == d1);
+    return struc;
+}
+
+export uniform nestedEmpty getWithNestedEmptyStructFromIspc(uniform int16 int16_1,
+                                                            uniform structWithEmpty *uniform struct1,
+                                                            uniform int8 int8_1, uniform int8 int8_2,
+                                                            uniform int8 int8_3) {
+    uniform nestedEmpty struc = getWithNestedEmptyStructFromCpp(int16_1, struct1, int8_1, int8_2, int8_3);
+    assert(struc.a == int16_1 && struc.b.x == struct1->x && struc.c == int8_1 && struc.d == int8_2 &&
+           struc.e == int8_3);
     return struc;
 }

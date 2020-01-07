@@ -94,6 +94,12 @@ void checkPassAsArgStructFromIspc(ispc::passAsArg struc, int int1, ispc::structF
     printResult(struc.a == int1 && struc.b.x == struct1->x && struc.b.y == struct1->y && *struc.c == d1);
 }
 
+void checkWithNestedEmptyStructFromIspc(ispc::nestedEmpty struc, short int int16_1, ispc::structWithEmpty *structE1,
+                                        unsigned char int8_1, unsigned char int8_2, unsigned char int8_3) {
+    printResult(struc.a == int16_1 && struc.b.x == structE1->x && struc.c == int8_1 && struc.d == int8_2 &&
+                struc.e == int8_3);
+}
+
 /* Functions called from ISPC side which returns struct from CPP to ISPC*/
 extern "C" ispc::singleInteger getSingleIntegerStructFromCpp(int int1) {
     ispc::singleInteger struc;
@@ -187,6 +193,18 @@ extern "C" ispc::passAsArg getPassAsArgStructFromCpp(int int1, ispc::structForSt
     return struc;
 }
 
+extern "C" ispc::nestedEmpty getWithNestedEmptyStructFromCpp(short int int16_1, ispc::structWithEmpty *struct1,
+                                                             unsigned char int8_1, unsigned char int8_2,
+                                                             unsigned char int8_3) {
+    ispc::nestedEmpty struc;
+    struc.a = int16_1;
+    struc.b.x = struct1->x;
+    struc.c = int8_1;
+    struc.d = int8_2;
+    struc.e = int8_3;
+    return struc;
+}
+
 void runTests() {
 
     int int1, int2, int3;
@@ -195,8 +213,9 @@ void runTests() {
     ispc::enumforStruct enum1;
     double d1;
     ispc::structForStruct *struct1 = new ispc::structForStruct;
-    ;
     float f_arr[3];
+    ispc::structWithEmpty *structE1 = new ispc::structWithEmpty;
+    short int int16_1;
 
     int1 = 7;
     std::cout << "\n\n\n Executing test : getSingleIntegerStructFromIspc \n";
@@ -277,6 +296,15 @@ void runTests() {
     std::cout << "\n\n\n Executing test : getPassAsArgStructFromIspc \n";
     ispc::passAsArg s12 = ispc::getPassAsArgStructFromIspc(int1, struct1, d1);
     checkPassAsArgStructFromIspc(s12, int1, struct1, d1);
+
+    int16_1 = 9;
+    int8_1 = 5;
+    int8_2 = 2;
+    int8_3 = 7;
+    structE1->x = 3;
+    std::cout << "\n\n\n Executing test : getWithNestedEmptyStructFromIspc \n";
+    ispc::nestedEmpty s13 = ispc::getWithNestedEmptyStructFromIspc(int16_1, structE1, int8_1, int8_2, int8_3);
+    checkWithNestedEmptyStructFromIspc(s13, int16_1, structE1, int8_1, int8_2, int8_3);
 }
 
 int main() {
