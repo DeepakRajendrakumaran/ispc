@@ -202,7 +202,7 @@ function(builtin_to_cpp bit os_name arch supported_archs supported_oses resultFi
     if (${os_name} STREQUAL "windows")
         set(target_flags --target=${target_arch}-pc-win32 ${includePath})
     elseif (${os_name} STREQUAL "linux")
-        set(target_flags --target=${target_arch}-unknown-linux-gnu -fPIC ${includePath})
+        set(target_flags --target=${target_arch}-linux-elf -fPIC ${includePath})
     elseif (${os_name} STREQUAL "freebsd")
         set(target_flags --target=${target_arch}-unknown-freebsd -fPIC ${includePath})
     elseif (${os_name} STREQUAL "macos")

@@ -978,11 +978,11 @@ Target::Target(Arch arch, const char *cpu, ISPCTarget ispc_target, bool pic, boo
 
 #if defined(ISPC_ARM_ENABLED) && !defined(__arm__)
     if ((CPUID == CPU_None) && ISPCTargetIsNeon(m_ispc_target) && arch == Arch::arm)
-        CPUID = CPU_CortexA9;
+        CPUID = CPU_CortexA57;
 #endif
 #if defined(ISPC_ARM_ENABLED) && !defined(__aarch64__)
     if ((CPUID == CPU_None) && ISPCTargetIsNeon(m_ispc_target) && arch == Arch::aarch64)
-        CPUID = CPU_CortexA35;
+        CPUID = CPU_CortexA57;
 #endif
     if (CPUID == CPU_None) {
         cpu = a.GetDefaultNameFromType(CPUfromISA).c_str();
@@ -1012,11 +1012,16 @@ Target::Target(Arch arch, const char *cpu, ISPCTarget ispc_target, bool pic, boo
         if (m_isa == Target::NEON)
             options.FloatABIType = llvm::FloatABI::Hard;
         if (arch == Arch::arm) {
-            this->m_funcAttributes.push_back(std::make_pair("target-features", "+neon,+fp16"));
-            featuresString = "+neon,+fp16";
+            this->m_funcAttributes.push_back(std::make_pair("target-features", "+crypto,+fp-armv8,+neon,+sha2"));
+            options.FloatABIType = llvm::FloatABI::Hard;
+            // REMOVE THIS
+            // featuresString = "+neon,+fp16";
         } else if (arch == Arch::aarch64) {
-            this->m_funcAttributes.push_back(std::make_pair("target-features", "+neon"));
-            featuresString = "+neon";
+            // this->m_funcAttributes.push_back(std::make_pair("target-features", "+neon"));
+            this->m_funcAttributes.push_back(
+                std::make_pair("target-features", "+aes,+crc,+crypto,+fp-armv8,+neon,+sha2"));
+            // REMOVE THIS
+            // featuresString = "+neon";
         }
 #endif
         if (g->opt.disableFMA == false)
@@ -1105,6 +1110,13 @@ std::string Target::SupportedCPUs() {
 
 std::string Target::GetTripleString() const {
     llvm::Triple triple;
+    if (m_arch == Arch::aarch64) {
+        // return "aarch64-linux-elf";
+        return "aarch64-unknown-linux-elf";
+    } else if (m_arch == Arch::arm) {
+        return "armv7-unknown-linux-elf";
+    }
+
     switch (g->target_os) {
     case TargetOS::windows:
         if (m_arch == Arch::x86) {
