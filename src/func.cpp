@@ -179,15 +179,15 @@ static void lCopyInTaskParameter(int i, llvm::Value *structArgPtr, const std::ve
         return;
 
     // allocate space to copy the parameter in to
-    sym->storagePtr = ctx->AllocaInst(argType, sym->name.c_str());
+    sym->storagePtr = ctx->AllocaInst(argType, sym->type, sym->name.c_str());
 
     // get a pointer to the value in the struct
     llvm::Value *ptr = ctx->AddElementOffset(structArgPtr, i, NULL, sym->name.c_str());
 
     // and copy the value from the struct and into the local alloca'ed
     // memory
-    llvm::Value *ptrval = ctx->LoadInst(ptr, sym->name.c_str());
-    ctx->StoreInst(ptrval, sym->storagePtr);
+    llvm::Value *ptrval = ctx->LoadInst(ptr, sym->type, sym->name.c_str());
+    ctx->StoreInst(ptrval, sym->storagePtr, sym->type);
     ctx->EmitFunctionParameterDebugInfo(sym, i);
 }
 
@@ -243,39 +243,39 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
             int nArgs = (int)args.size();
             // The mask is the last parameter in the argument structure
             llvm::Value *ptr = ctx->AddElementOffset(structParamPtr, nArgs, NULL, "task_struct_mask");
-            llvm::Value *ptrval = ctx->LoadInst(ptr, "mask");
+            llvm::Value *ptrval = ctx->LoadInst(ptr, NULL, "mask");
             ctx->SetFunctionMask(ptrval);
         }
 
         // Copy threadIndex and threadCount into stack-allocated storage so
         // that their symbols point to something reasonable.
-        threadIndexSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "threadIndex");
-        ctx->StoreInst(threadIndex, threadIndexSym->storagePtr);
+        threadIndexSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "threadIndex");
+        ctx->StoreInst(threadIndex, threadIndexSym->storagePtr, NULL);
 
-        threadCountSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "threadCount");
-        ctx->StoreInst(threadCount, threadCountSym->storagePtr);
+        threadCountSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "threadCount");
+        ctx->StoreInst(threadCount, threadCountSym->storagePtr, NULL);
 
         // Copy taskIndex and taskCount into stack-allocated storage so
         // that their symbols point to something reasonable.
-        taskIndexSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskIndex");
-        ctx->StoreInst(taskIndex, taskIndexSym->storagePtr);
+        taskIndexSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskIndex");
+        ctx->StoreInst(taskIndex, taskIndexSym->storagePtr, NULL);
 
-        taskCountSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskCount");
-        ctx->StoreInst(taskCount, taskCountSym->storagePtr);
+        taskCountSym->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskCount");
+        ctx->StoreInst(taskCount, taskCountSym->storagePtr, NULL);
 
-        taskIndexSym0->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskIndex0");
-        ctx->StoreInst(taskIndex0, taskIndexSym0->storagePtr);
-        taskIndexSym1->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskIndex1");
-        ctx->StoreInst(taskIndex1, taskIndexSym1->storagePtr);
-        taskIndexSym2->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskIndex2");
-        ctx->StoreInst(taskIndex2, taskIndexSym2->storagePtr);
+        taskIndexSym0->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskIndex0");
+        ctx->StoreInst(taskIndex0, taskIndexSym0->storagePtr, NULL);
+        taskIndexSym1->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskIndex1");
+        ctx->StoreInst(taskIndex1, taskIndexSym1->storagePtr, NULL);
+        taskIndexSym2->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskIndex2");
+        ctx->StoreInst(taskIndex2, taskIndexSym2->storagePtr, NULL);
 
-        taskCountSym0->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskCount0");
-        ctx->StoreInst(taskCount0, taskCountSym0->storagePtr);
-        taskCountSym1->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskCount1");
-        ctx->StoreInst(taskCount1, taskCountSym1->storagePtr);
-        taskCountSym2->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, "taskCount2");
-        ctx->StoreInst(taskCount2, taskCountSym2->storagePtr);
+        taskCountSym0->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskCount0");
+        ctx->StoreInst(taskCount0, taskCountSym0->storagePtr, NULL);
+        taskCountSym1->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskCount1");
+        ctx->StoreInst(taskCount1, taskCountSym1->storagePtr, NULL);
+        taskCountSym2->storagePtr = ctx->AllocaInst(LLVMTypes::Int32Type, NULL, "taskCount2");
+        ctx->StoreInst(taskCount2, taskCountSym2->storagePtr, NULL);
     } else {
         // Regular, non-task function
         llvm::Function::arg_iterator argIter = function->arg_begin();
@@ -289,9 +289,8 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
 
             // Allocate stack storage for the parameter and emit code
             // to store the its value there.
-            argSym->storagePtr = ctx->AllocaInst(argIter->getType(), argSym->name.c_str());
-
-            ctx->StoreInst(&*argIter, argSym->storagePtr);
+            argSym->storagePtr = ctx->AllocaInst(argIter->getType(), argSym->type, argSym->name.c_str());
+            ctx->StoreInst(&*argIter, argSym->storagePtr, argSym->type);
             ctx->EmitFunctionParameterDebugInfo(argSym, i);
         }
 
