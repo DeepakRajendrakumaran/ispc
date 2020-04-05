@@ -60,6 +60,7 @@ struct LLVMTypes {
     static llvm::PointerType *VoidPointerType;
     static llvm::Type *PointerIntType;
     static llvm::Type *BoolType;
+    static llvm::Type *BoolDiskType;
 
     static llvm::Type *Int8Type;
     static llvm::Type *Int16Type;
@@ -78,6 +79,7 @@ struct LLVMTypes {
     static llvm::VectorType *MaskType;
 
     static llvm::VectorType *BoolVectorType;
+    static llvm::VectorType *BoolDiskVectorType;
     static llvm::VectorType *Int1VectorType;
     static llvm::VectorType *Int8VectorType;
     static llvm::VectorType *Int16VectorType;
