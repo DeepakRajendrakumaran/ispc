@@ -2369,19 +2369,18 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *p
     }
 
     llvm::Type *llvmTypeToDisk = llvmType;
-    if ((ptrType != NULL) && (ptrType->IsBoolType()) && (CastType<AtomicType>(ptrType) != NULL)) {
-        if (ptrType->IsVaryingType()) {
-            printf("\n VARYING \n");
-            llvmTypeToDisk = LLVMTypes::BoolDiskVectorType;
-        } else {
-            printf("\n UNIFORM \n");
-            llvmTypeToDisk = LLVMTypes::BoolDiskType;
+    if (ptrType != NULL) {
+        if (((CastType<AtomicType>(ptrType) != NULL) && (ptrType->IsBoolType())) ||
+            ((CastType<ArrayType>(ptrType) != NULL) && (ptrType->GetBaseType()->IsBoolType()))) {
+            llvmTypeToDisk = ptrType->LLVMType(g->ctx, true);
         }
     }
 
     // Deepak : To be Removed
-    if (ptrType)
+    if (ptrType) {
         printf("\n\n FunctionEmitContext::AllocaInst : type = %s \n", ptrType->GetString().c_str());
+    }
+
     llvm::AllocaInst *inst = NULL;
     if (atEntryBlock) {
         // We usually insert it right before the jump instruction at the
@@ -2501,11 +2500,11 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
             maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i64");
     } else if (llvmValueType == LLVMTypes::Int1VectorType) {
         llvm::Value *notMask = BinaryOperator(llvm::Instruction::Xor, mask, LLVMMaskAllOn, "~mask");
-        llvm::Value *old = LoadInst(ptr, NULL);
+        llvm::Value *old = LoadInst(ptr, valueType);
         llvm::Value *maskedOld = BinaryOperator(llvm::Instruction::And, old, notMask, "old&~mask");
         llvm::Value *maskedNew = BinaryOperator(llvm::Instruction::And, value, mask, "new&mask");
         llvm::Value *final = BinaryOperator(llvm::Instruction::Or, maskedOld, maskedNew, "old_new_result");
-        StoreInst(final, ptr);
+        StoreInst(final, ptr, valueType);
         return;
     } else if (llvmValueTypeInDisk == LLVMTypes::DoubleVectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_double");
@@ -2661,6 +2660,7 @@ void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr, const 
         printf("\n ptrType = %s \n", ptrType->GetString().c_str());
         if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) >
             g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
+            printf("\n Trunc \n");
             toReg = TruncInst(value, ptrType->LLVMType(g->ctx, true));
         } else if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) <
                    g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
@@ -2670,13 +2670,6 @@ void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr, const 
     }
 
     llvm::StoreInst *inst = new llvm::StoreInst(toReg, ptr, bblock);
-    if (ptrType) {
-        value->dump();
-        toReg->dump();
-        ptr->dump();
-        inst->dump();
-        printf("\nFunctionEmitContext::StoreInst : DONE \n\n");
-    }
 
     if (g->opt.forceAlignedMemory && llvm::dyn_cast<llvm::VectorType>(pt->getElementType())) {
 #if ISPC_LLVM_VERSION <= ISPC_LLVM_9_0
