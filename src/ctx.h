@@ -443,7 +443,7 @@ class FunctionEmitContext {
     llvm::Value *LoadInst(llvm::Value *ptr, llvm::Value *mask, const Type *ptrType, const char *name = NULL,
                           bool one_elem = false);
 
-    llvm::Value *LoadInst(llvm::Value *ptr, const char *name = NULL);
+    llvm::Value *LoadInst(llvm::Value *ptr, const Type *type, const char *name = NULL);
 
     /** Emits an alloca instruction to allocate stack storage for the given
         type.  If a non-zero alignment is specified, the object is also

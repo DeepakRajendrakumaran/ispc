@@ -186,7 +186,7 @@ static void lCopyInTaskParameter(int i, llvm::Value *structArgPtr, const std::ve
 
     // and copy the value from the struct and into the local alloca'ed
     // memory
-    llvm::Value *ptrval = ctx->LoadInst(ptr, sym->name.c_str());
+    llvm::Value *ptrval = ctx->LoadInst(ptr, sym->type, sym->name.c_str());
     ctx->StoreInst(ptrval, sym->storagePtr, sym->type);
     ctx->EmitFunctionParameterDebugInfo(sym, i);
 }
@@ -243,7 +243,7 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
             int nArgs = (int)args.size();
             // The mask is the last parameter in the argument structure
             llvm::Value *ptr = ctx->AddElementOffset(structParamPtr, nArgs, NULL, "task_struct_mask");
-            llvm::Value *ptrval = ctx->LoadInst(ptr, "mask");
+            llvm::Value *ptrval = ctx->LoadInst(ptr, NULL, "mask");
             ctx->SetFunctionMask(ptrval);
         }
 

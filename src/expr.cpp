@@ -1724,7 +1724,7 @@ llvm::Value *lEmitLogicalOp(BinaryExpr::Op op, Expr *arg0, Expr *arg1, FunctionE
         // loading the value stored in retPtr in turn gives the overall
         // result.
         ctx->SetCurrentBasicBlock(bbLogicalDone);
-        return ctx->LoadInst(retPtr);
+        return ctx->LoadInst(retPtr, retType);
     } else {
         // Otherwise, the first operand is varying...  Save the current
         // value of the mask so that we can restore it at the end.
@@ -1829,7 +1829,7 @@ llvm::Value *lEmitLogicalOp(BinaryExpr::Op op, Expr *arg0, Expr *arg1, FunctionE
         // the old mask and return the computed result
         ctx->SetCurrentBasicBlock(bbLogicalDone);
         ctx->SetInternalMask(oldMask);
-        return ctx->LoadInst(retPtr);
+        return ctx->LoadInst(retPtr, retType);
     }
 }
 
@@ -3051,7 +3051,7 @@ static llvm::Value *lEmitVaryingSelect(FunctionEmitContext *ctx, llvm::Value *te
     // Use masking to conditionally store the expr1 values
     Assert(resultPtr->getType() == PointerType::GetUniform(type)->LLVMType(g->ctx));
     ctx->StoreInst(expr1, resultPtr, test, type, PointerType::GetUniform(type));
-    return ctx->LoadInst(resultPtr, "selectexpr_final");
+    return ctx->LoadInst(resultPtr, type, "selectexpr_final");
 }
 
 static void lEmitSelectExprCode(FunctionEmitContext *ctx, llvm::Value *testVal, llvm::Value *oldMask,
@@ -3162,8 +3162,8 @@ llvm::Value *SelectExpr::GetValue(FunctionEmitContext *ctx) const {
         }
 
         ctx->SetInternalMask(oldMask);
-        llvm::Value *expr1Val = ctx->LoadInst(expr1Ptr);
-        llvm::Value *expr2Val = ctx->LoadInst(expr2Ptr);
+        llvm::Value *expr1Val = ctx->LoadInst(expr1Ptr, expr1->GetType());
+        llvm::Value *expr2Val = ctx->LoadInst(expr2Ptr, expr2->GetType());
         return lEmitVaryingSelect(ctx, testVal, expr1Val, expr2Val, type);
     } else {
         // FIXME? Short-circuiting doesn't work in the case of
@@ -4729,7 +4729,7 @@ llvm::Value *VectorMemberExpr::GetValue(FunctionEmitContext *ctx) const {
             ctx->StoreInst(elementValue, ptmp, elementPtrType);
         }
 
-        return ctx->LoadInst(resultPtr, LLVMGetName(basePtr, "_swizzle"));
+        return ctx->LoadInst(resultPtr, memberType, LLVMGetName(basePtr, "_swizzle"));
     }
 }
 
@@ -7494,7 +7494,7 @@ llvm::Value *SymbolExpr::GetValue(FunctionEmitContext *ctx) const {
     ctx->SetDebugPos(pos);
 
     std::string loadName = symbol->name + std::string("_load");
-    return ctx->LoadInst(symbol->storagePtr, loadName.c_str());
+    return ctx->LoadInst(symbol->storagePtr, symbol->type, loadName.c_str());
 }
 
 llvm::Value *SymbolExpr::GetLValue(FunctionEmitContext *ctx) const {
