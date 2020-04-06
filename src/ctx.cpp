@@ -2438,8 +2438,17 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
     // Figure out if we need a 8, 16, 32 or 64-bit masked store.
     llvm::Function *maskedStoreFunc = NULL;
     llvm::Type *llvmValueType = value->getType();
+    llvm::Type *llvmValueTypeInDisk = llvmValueType;
+
+    printf("\n masked store valueType = %s ,ptrType = %s \n", valueType->GetString().c_str(),
+           ptrType->GetString().c_str());
 
     const PointerType *pt = CastType<PointerType>(valueType);
+    // DEEPAK: Re-visit conditio. Assert added to collect info
+    if ((pt == NULL) && (valueType->IsBoolType())) {
+        AssertPos(currentPos, (CastType<AtomicType>(ptrType) != NULL));
+        llvmValueTypeInDisk = LLVMTypes::BoolDiskVectorType;
+    }
     if (pt != NULL) {
         if (pt->IsSlice()) {
             // Masked store of (varying) slice pointer.
@@ -2472,18 +2481,24 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
         llvm::Value *final = BinaryOperator(llvm::Instruction::Or, maskedOld, maskedNew, "old_new_result");
         StoreInst(final, ptr);
         return;
-    } else if (llvmValueType == LLVMTypes::DoubleVectorType) {
+    } else if (llvmValueTypeInDisk == LLVMTypes::DoubleVectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_double");
-    } else if (llvmValueType == LLVMTypes::Int64VectorType) {
+    } else if (llvmValueTypeInDisk == LLVMTypes::Int64VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i64");
-    } else if (llvmValueType == LLVMTypes::FloatVectorType) {
+    } else if (llvmValueTypeInDisk == LLVMTypes::FloatVectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_float");
-    } else if (llvmValueType == LLVMTypes::Int32VectorType) {
+    } else if (llvmValueTypeInDisk == LLVMTypes::Int32VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i32");
-    } else if (llvmValueType == LLVMTypes::Int16VectorType) {
+    } else if (llvmValueTypeInDisk == LLVMTypes::Int16VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i16");
-    } else if (llvmValueType == LLVMTypes::Int8VectorType) {
+    } else if (llvmValueTypeInDisk == LLVMTypes::Int8VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i8");
+        if (g->target->getDataLayout()->getTypeSizeInBits(llvmValueType) <
+            g->target->getDataLayout()->getTypeSizeInBits(llvmValueTypeInDisk))
+            value = ZExtInst(value, LLVMTypes::BoolDiskVectorType);
+        else if (g->target->getDataLayout()->getTypeSizeInBits(llvmValueType) >
+                 g->target->getDataLayout()->getTypeSizeInBits(llvmValueTypeInDisk))
+            value = TruncInst(value, LLVMTypes::BoolDiskVectorType);
     }
     AssertPos(currentPos, maskedStoreFunc != NULL);
 
