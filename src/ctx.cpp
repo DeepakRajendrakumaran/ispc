@@ -2165,10 +2165,14 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, llvm::Value *mask, 
         name = LLVMGetName(ptr, "_load");
 
     const PointerType *ptrType;
-    if (CastType<ReferenceType>(ptrRefType) != NULL)
+    const Type *elType;
+    printf("\n\n FunctionEmitContext::LoadInst : ptrRefType = %s , name = %s: ", ptrRefType->GetString().c_str(), name);
+    if (CastType<ReferenceType>(ptrRefType) != NULL) {
         ptrType = PointerType::GetUniform(ptrRefType->GetReferenceTarget());
-    else {
+        elType = ptrRefType->GetReferenceTarget();
+    } else {
         ptrType = CastType<PointerType>(ptrRefType);
+        elType = ptrType->GetBaseType()->GetBaseType();
         AssertPos(currentPos, ptrType != NULL);
     }
 
@@ -2204,6 +2208,14 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, llvm::Value *mask, 
                 new llvm::LoadInst(ptr, name, false /* not volatile */, llvm::MaybeAlign(align), bblock);
 #endif
             AddDebugPos(inst);
+            if (elType->IsBoolType() && (CastType<AtomicType>(elType) != NULL)) {
+                if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) >
+                    g->target->getDataLayout()->getTypeSizeInBits(elType->LLVMType(g->ctx)))
+                    inst = TruncInst(inst, elType->LLVMType(g->ctx));
+                else if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) <
+                         g->target->getDataLayout()->getTypeSizeInBits(elType->LLVMType(g->ctx)))
+                    inst = ZExtInst(inst, elType->LLVMType(g->ctx));
+            }
             return inst;
         }
     } else {
@@ -2459,9 +2471,8 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
            ptrType->GetString().c_str());
 
     const PointerType *pt = CastType<PointerType>(valueType);
-    // DEEPAK: Re-visit conditio. Assert added to collect info
-    if ((pt == NULL) && (valueType->IsBoolType())) {
-        AssertPos(currentPos, (CastType<AtomicType>(ptrType) != NULL));
+    // DEEPAK: Re-visit condition. Possibly need some checks
+    if ((pt == NULL) && (valueType->IsBoolType()) /* && (CastType<AtomicType>(ptrType) != NULL)*/) {
         llvmValueTypeInDisk = LLVMTypes::BoolDiskVectorType;
     }
     if (pt != NULL) {
@@ -2521,6 +2532,10 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
     args.push_back(ptr);
     args.push_back(value);
     args.push_back(mask);
+    printf("\n\n arggs\n");
+    for (auto arggs : args)
+        arggs->dump();
+    maskedStoreFunc->dump();
     CallInst(maskedStoreFunc, NULL, args);
 }
 
