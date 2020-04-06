@@ -456,7 +456,7 @@ class FunctionEmitContext {
 
     /** Standard store instruction; for this variant, the lvalue must be a
         single pointer, not a varying lvalue. */
-    void StoreInst(llvm::Value *value, llvm::Value *ptr);
+    void StoreInst(llvm::Value *value, llvm::Value *ptr, const Type *ptrType = NULL);
 
     /** In this variant of StoreInst(), the lvalue may be varying.  If so,
         this corresponds to a scatter.  Whether the lvalue is uniform of

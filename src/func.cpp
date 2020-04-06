@@ -187,7 +187,7 @@ static void lCopyInTaskParameter(int i, llvm::Value *structArgPtr, const std::ve
     // and copy the value from the struct and into the local alloca'ed
     // memory
     llvm::Value *ptrval = ctx->LoadInst(ptr, sym->name.c_str());
-    ctx->StoreInst(ptrval, sym->storagePtr);
+    ctx->StoreInst(ptrval, sym->storagePtr, sym->type);
     ctx->EmitFunctionParameterDebugInfo(sym, i);
 }
 
@@ -291,7 +291,7 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
             // to store the its value there.
             argSym->storagePtr = ctx->AllocaInst(argIter->getType(), argSym->type, argSym->name.c_str());
 
-            ctx->StoreInst(&*argIter, argSym->storagePtr);
+            ctx->StoreInst(&*argIter, argSym->storagePtr, argSym->type);
             ctx->EmitFunctionParameterDebugInfo(argSym, i);
         }
 

@@ -1071,7 +1071,7 @@ void FunctionEmitContext::CurrentLanesReturned(Expr *expr, bool doCoherenceCheck
             llvm::Value *retVal = expr->GetValue(this);
             if (retVal != NULL) {
                 if (returnType->IsUniformType() || CastType<ReferenceType>(returnType) != NULL)
-                    StoreInst(retVal, returnValuePtr);
+                    StoreInst(retVal, returnValuePtr, returnType);
                 else {
                     // Use a masked store to store the value of the expression
                     // in the return value memory; this preserves the return
@@ -2599,7 +2599,7 @@ void FunctionEmitContext::scatter(llvm::Value *value, llvm::Value *ptr, const Ty
         addGSMetadata(inst, currentPos);
 }
 
-void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr) {
+void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr, const Type *ptrType) {
     if (value == NULL || ptr == NULL) {
         // may happen due to error elsewhere
         AssertPos(currentPos, m->errorCount > 0);
@@ -2609,7 +2609,29 @@ void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr) {
     llvm::PointerType *pt = llvm::dyn_cast<llvm::PointerType>(ptr->getType());
     AssertPos(currentPos, pt != NULL);
 
-    llvm::StoreInst *inst = new llvm::StoreInst(value, ptr, bblock);
+    if (ptrType)
+        printf("\n\n FunctionEmitContext::StoreInst : ptrType = %s \n", ptrType->GetString().c_str());
+    llvm::Value *toReg = value;
+    if ((ptrType != NULL) && (ptrType->IsBoolType()) && (CastType<AtomicType>(ptrType) != NULL)) {
+        printf("\n ptrType = %s \n", ptrType->GetString().c_str());
+        if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) >
+            g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
+            toReg = TruncInst(value, ptrType->LLVMType(g->ctx, true));
+        } else if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) <
+                   g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
+            printf("\n Zext \n");
+            toReg = ZExtInst(value, ptrType->LLVMType(g->ctx, true));
+        }
+    }
+
+    llvm::StoreInst *inst = new llvm::StoreInst(toReg, ptr, bblock);
+    if (ptrType) {
+        value->dump();
+        toReg->dump();
+        ptr->dump();
+        inst->dump();
+        printf("\nFunctionEmitContext::StoreInst : DONE \n\n");
+    }
 
     if (g->opt.forceAlignedMemory && llvm::dyn_cast<llvm::VectorType>(pt->getElementType())) {
 #if ISPC_LLVM_VERSION <= ISPC_LLVM_9_0
@@ -2651,11 +2673,11 @@ void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr, llvm::
             storeUniformToSOA(value, ptr, mask, valueType, ptrType);
         else if (ptrType->GetBaseType()->IsUniformType())
             // the easy case
-            StoreInst(value, ptr);
+            StoreInst(value, ptr, valueType);
         else if (mask == LLVMMaskAllOn && !g->opt.disableMaskAllOnOptimizations)
             // Otherwise it is a masked store unless we can determine that the
             // mask is all on...  (Unclear if this check is actually useful.)
-            StoreInst(value, ptr);
+            StoreInst(value, ptr, valueType);
         else
             maskedStore(value, ptr, ptrType, mask);
     } else {
@@ -2687,7 +2709,7 @@ void FunctionEmitContext::storeUniformToSOA(llvm::Value *value, llvm::Value *ptr
         // then we can do a final regular store
         AssertPos(currentPos, Type::IsBasicType(valueType));
         ptr = lFinalSliceOffset(this, ptr, &ptrType);
-        StoreInst(value, ptr);
+        StoreInst(value, ptr, valueType);
     }
 }
 
@@ -3112,6 +3134,7 @@ llvm::Value *FunctionEmitContext::LaunchInst(llvm::Value *callee, std::vector<ll
     for (unsigned int i = 0; i < argVals.size(); ++i) {
         llvm::Value *ptr = AddElementOffset(argmem, i, NULL, "funarg");
         // don't need to do masked store here, I think
+        // DEEPAK : REVISIT - NEED TYPE
         StoreInst(argVals[i], ptr);
     }
 

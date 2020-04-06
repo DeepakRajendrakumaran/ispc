@@ -1809,7 +1809,7 @@ void ForeachActiveStmt::EmitCode(FunctionEmitContext *ctx) const {
 
         // Store that value into the storage allocated for the iteration
         // variable.
-        ctx->StoreInst(firstSet, sym->storagePtr);
+        ctx->StoreInst(firstSet, sym->storagePtr, sym->type);
 
         // Now set the execution mask to be only on for the current program
         // instance.  (TODO: is there a more efficient way to do this? e.g.
@@ -1976,7 +1976,7 @@ void ForeachUniqueStmt::EmitCode(FunctionEmitContext *ctx) const {
     ctx->SetDebugPos(pos);
     const Type *exprPtrType = PointerType::GetUniform(exprType);
     llvm::Value *exprMem = ctx->AllocaInst(llvmExprType, exprType, "expr_mem");
-    ctx->StoreInst(exprValue, exprMem);
+    ctx->StoreInst(exprValue, exprMem, exprType);
 
     // Onward to find the first set of lanes to run the loop for
     ctx->BranchInst(bbFindNext);
@@ -2004,7 +2004,7 @@ void ForeachUniqueStmt::EmitCode(FunctionEmitContext *ctx) const {
 
         // Store that value in sym's storage so that the iteration variable
         // has the right value inside the loop body
-        ctx->StoreInst(uniqueValue, sym->storagePtr);
+        ctx->StoreInst(uniqueValue, sym->storagePtr, sym->type);
 
         // Set the execution mask so that it's on for any lane that a) was
         // running at the start of the foreach loop, and b) where that
@@ -2689,7 +2689,7 @@ static llvm::Value *lProcessPrintArg(Expr *expr, FunctionEmitContext *ctx, std::
         llvm::Value *val = expr->GetValue(ctx);
         if (!val)
             return NULL;
-        ctx->StoreInst(val, ptr);
+        ctx->StoreInst(val, ptr, type);
 
         ptr = ctx->BitCastInst(ptr, LLVMTypes::VoidPointerType);
         return ptr;
