@@ -3049,7 +3049,7 @@ static llvm::Value *lEmitVaryingSelect(FunctionEmitContext *ctx, llvm::Value *te
     // Don't need to worry about masking here
     ctx->StoreInst(expr2, resultPtr, type);
     // Use masking to conditionally store the expr1 values
-    Assert(resultPtr->getType() == PointerType::GetUniform(type)->LLVMType(g->ctx));
+    Assert(resultPtr->getType() == PointerType::GetUniform(type)->LLVMType(g->ctx, true));
     ctx->StoreInst(expr1, resultPtr, test, type, PointerType::GetUniform(type));
     return ctx->LoadInst(resultPtr, type, "selectexpr_final");
 }
