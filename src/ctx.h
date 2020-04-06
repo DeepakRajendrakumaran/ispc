@@ -451,7 +451,8 @@ class FunctionEmitContext {
         instruction is added at the start of the function in the entry
         basic block; if it should be added to the current basic block, then
         the atEntryBlock parameter should be false. */
-    llvm::Value *AllocaInst(llvm::Type *llvmType, const char *name = NULL, int align = 0, bool atEntryBlock = true);
+    llvm::Value *AllocaInst(llvm::Type *llvmType, const Type *ptrType, const char *name = NULL, int align = 0,
+                            bool atEntryBlock = true);
 
     /** Standard store instruction; for this variant, the lvalue must be a
         single pointer, not a varying lvalue. */

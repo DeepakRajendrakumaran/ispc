@@ -209,12 +209,12 @@ FunctionEmitContext::FunctionEmitContext(Function *func, Symbol *funSym, llvm::F
 
     funcStartPos = funSym->pos;
 
-    internalMaskPointer = AllocaInst(LLVMTypes::MaskType, "internal_mask_memory");
+    internalMaskPointer = AllocaInst(LLVMTypes::MaskType, NULL, "internal_mask_memory");
     StoreInst(LLVMMaskAllOn, internalMaskPointer);
 
     functionMaskValue = LLVMMaskAllOn;
 
-    fullMaskPointer = AllocaInst(LLVMTypes::MaskType, "full_mask_memory");
+    fullMaskPointer = AllocaInst(LLVMTypes::MaskType, NULL, "full_mask_memory");
     StoreInst(LLVMMaskAllOn, fullMaskPointer);
 
     blockEntryMask = NULL;
@@ -226,11 +226,11 @@ FunctionEmitContext::FunctionEmitContext(Function *func, Symbol *funSym, llvm::F
     defaultBlock = NULL;
     nextBlocks = NULL;
 
-    returnedLanesPtr = AllocaInst(LLVMTypes::MaskType, "returned_lanes_memory");
+    returnedLanesPtr = AllocaInst(LLVMTypes::MaskType, NULL, "returned_lanes_memory");
     StoreInst(LLVMMaskAllOff, returnedLanesPtr);
 
     launchedTasks = false;
-    launchGroupHandlePtr = AllocaInst(LLVMTypes::VoidPointerType, "launch_group_handle");
+    launchGroupHandlePtr = AllocaInst(LLVMTypes::VoidPointerType, NULL, "launch_group_handle");
     StoreInst(llvm::Constant::getNullValue(LLVMTypes::VoidPointerType), launchGroupHandlePtr);
 
     disableGSWarningCount = 0;
@@ -240,7 +240,7 @@ FunctionEmitContext::FunctionEmitContext(Function *func, Symbol *funSym, llvm::F
         returnValuePtr = NULL;
     else {
         llvm::Type *ftype = returnType->LLVMType(g->ctx);
-        returnValuePtr = AllocaInst(ftype, "return_value_memory");
+        returnValuePtr = AllocaInst(ftype, returnType, "return_value_memory");
     }
 
     if (g->opt.disableMaskAllOnOptimizations) {
@@ -499,9 +499,9 @@ void FunctionEmitContext::StartLoop(llvm::BasicBlock *bt, llvm::BasicBlock *ct, 
     else {
         // For loops with varying conditions, allocate space to store masks
         // that record which lanes have done these
-        continueLanesPtr = AllocaInst(LLVMTypes::MaskType, "continue_lanes_memory");
+        continueLanesPtr = AllocaInst(LLVMTypes::MaskType, NULL, "continue_lanes_memory");
         StoreInst(LLVMMaskAllOff, continueLanesPtr);
-        breakLanesPtr = AllocaInst(LLVMTypes::MaskType, "break_lanes_memory");
+        breakLanesPtr = AllocaInst(LLVMTypes::MaskType, NULL, "break_lanes_memory");
         StoreInst(LLVMMaskAllOff, breakLanesPtr);
     }
 
@@ -547,7 +547,7 @@ void FunctionEmitContext::StartForeach(ForeachType ft) {
     breakLanesPtr = NULL;
     breakTarget = NULL;
 
-    continueLanesPtr = AllocaInst(LLVMTypes::MaskType, "foreach_continue_lanes");
+    continueLanesPtr = AllocaInst(LLVMTypes::MaskType, NULL, "foreach_continue_lanes");
     StoreInst(LLVMMaskAllOff, continueLanesPtr);
     continueTarget = NULL; // should be set by SetContinueTarget()
 
@@ -788,7 +788,7 @@ void FunctionEmitContext::StartSwitch(bool cfIsUniform, llvm::BasicBlock *bbBrea
                                                 continueLanesPtr, oldMask, blockEntryMask, switchExpr, defaultBlock,
                                                 caseBlocks, nextBlocks, switchConditionWasUniform));
 
-    breakLanesPtr = AllocaInst(LLVMTypes::MaskType, "break_lanes_memory");
+    breakLanesPtr = AllocaInst(LLVMTypes::MaskType, NULL, "break_lanes_memory");
     StoreInst(LLVMMaskAllOff, breakLanesPtr);
     breakTarget = bbBreak;
 
@@ -2334,12 +2334,27 @@ void FunctionEmitContext::addGSMetadata(llvm::Value *v, SourcePos pos) {
     inst->setMetadata("last_column", md);
 }
 
-llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const char *name, int align, bool atEntryBlock) {
+llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *ptrType, const char *name, int align,
+                                             bool atEntryBlock) {
     if (llvmType == NULL) {
         AssertPos(currentPos, m->errorCount > 0);
         return NULL;
     }
 
+    llvm::Type *llvmTypeToDisk = llvmType;
+    if ((ptrType != NULL) && (ptrType->IsBoolType()) && (CastType<AtomicType>(ptrType) != NULL)) {
+        if (ptrType->IsVaryingType()) {
+            printf("\n VARYING \n");
+            llvmTypeToDisk = LLVMTypes::BoolDiskVectorType;
+        } else {
+            printf("\n UNIFORM \n");
+            llvmTypeToDisk = LLVMTypes::BoolDiskType;
+        }
+    }
+
+    // Deepak : To be Removed
+    if (ptrType)
+        printf("\n\n FunctionEmitContext::AllocaInst : type = %s \n", ptrType->GetString().c_str());
     llvm::AllocaInst *inst = NULL;
     if (atEntryBlock) {
         // We usually insert it right before the jump instruction at the
@@ -2347,12 +2362,12 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const char *n
         llvm::Instruction *retInst = allocaBlock->getTerminator();
         AssertPos(currentPos, retInst);
         unsigned AS = llvmFunction->getParent()->getDataLayout().getAllocaAddrSpace();
-        inst = new llvm::AllocaInst(llvmType, AS, name ? name : "", retInst);
+        inst = new llvm::AllocaInst(llvmTypeToDisk, AS, name ? name : "", retInst);
     } else {
         // Unless the caller overrode the default and wants it in the
         // current basic block
         unsigned AS = llvmFunction->getParent()->getDataLayout().getAllocaAddrSpace();
-        inst = new llvm::AllocaInst(llvmType, AS, name ? name : "", bblock);
+        inst = new llvm::AllocaInst(llvmTypeToDisk, AS, name ? name : "", bblock);
     }
 
     // If no alignment was specified but we have an array of a uniform
@@ -2360,7 +2375,7 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const char *n
     // unlikely that this array will be loaded into varying variables with
     // what will be aligned accesses if the uniform -> varying load is done
     // in regular chunks.
-    llvm::ArrayType *arrayType = llvm::dyn_cast<llvm::ArrayType>(llvmType);
+    llvm::ArrayType *arrayType = llvm::dyn_cast<llvm::ArrayType>(llvmTypeToDisk);
     if (align == 0 && arrayType != NULL && !llvm::isa<llvm::VectorType>(arrayType->getElementType()))
         align = g->target->getNativeVectorAlignment();
 
@@ -2370,6 +2385,11 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const char *n
 #else // LLVM 10.0+
         inst->setAlignment(llvm::MaybeAlign(align));
 #endif
+    }
+    // Deepak : To be Removed
+    if (ptrType) {
+        inst->dump();
+        printf("\n FunctionEmitContext::AllocaInst DONE \n\n");
     }
     // Don't add debugging info to alloca instructions
     return inst;
@@ -2925,13 +2945,13 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
         llvm::Type *llvmReturnType = returnType->LLVMType(g->ctx);
         llvm::Value *resultPtr = NULL;
         if (llvmReturnType->isVoidTy() == false)
-            resultPtr = AllocaInst(llvmReturnType);
+            resultPtr = AllocaInst(llvmReturnType, returnType);
 
         // The memory pointed to by maskPointer tracks the set of program
         // instances for which we still need to call the function they are
         // pointing to.  It starts out initialized with the mask of
         // currently running program instances.
-        llvm::Value *maskPtr = AllocaInst(LLVMTypes::MaskType);
+        llvm::Value *maskPtr = AllocaInst(LLVMTypes::MaskType, NULL);
         StoreInst(GetFullMask(), maskPtr);
 
         // And now we branch to the test to see if there's more work to be

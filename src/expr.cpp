@@ -1659,7 +1659,7 @@ llvm::Value *lEmitLogicalOp(BinaryExpr::Op op, Expr *arg0, Expr *arg1, FunctionE
     // Allocate temporary storage for the return value
     const Type *retType = Type::MoreGeneralType(type0, type1, pos, lOpString(op));
     llvm::Type *llvmRetType = retType->LLVMType(g->ctx);
-    llvm::Value *retPtr = ctx->AllocaInst(llvmRetType, "logical_op_mem");
+    llvm::Value *retPtr = ctx->AllocaInst(llvmRetType, retType, "logical_op_mem");
 
     llvm::BasicBlock *bbSkipEvalValue1 = ctx->CreateBasicBlock("skip_eval_1");
     llvm::BasicBlock *bbEvalValue1 = ctx->CreateBasicBlock("eval_1");
@@ -3045,7 +3045,7 @@ SelectExpr::SelectExpr(Expr *t, Expr *e1, Expr *e2, SourcePos p) : Expr(p, Selec
 static llvm::Value *lEmitVaryingSelect(FunctionEmitContext *ctx, llvm::Value *test, llvm::Value *expr1,
                                        llvm::Value *expr2, const Type *type) {
 
-    llvm::Value *resultPtr = ctx->AllocaInst(expr1->getType(), "selectexpr_tmp");
+    llvm::Value *resultPtr = ctx->AllocaInst(expr1->getType(), type, "selectexpr_tmp");
     // Don't need to worry about masking here
     ctx->StoreInst(expr2, resultPtr);
     // Use masking to conditionally store the expr1 values
@@ -3141,8 +3141,8 @@ llvm::Value *SelectExpr::GetValue(FunctionEmitContext *ctx) const {
         // expression, if any.  (These stay as uninitialized memory if we
         // short circuit around the corresponding expression.)
         llvm::Type *exprType = expr1->GetType()->LLVMType(g->ctx);
-        llvm::Value *expr1Ptr = ctx->AllocaInst(exprType);
-        llvm::Value *expr2Ptr = ctx->AllocaInst(exprType);
+        llvm::Value *expr1Ptr = ctx->AllocaInst(exprType, expr1->GetType());
+        llvm::Value *expr2Ptr = ctx->AllocaInst(exprType, expr1->GetType());
 
         if (shortCircuit1)
             lEmitSelectExprCode(ctx, testVal, oldMask, fullMask, expr1, expr1Ptr);
@@ -4024,7 +4024,7 @@ llvm::Value *IndexExpr::GetValue(FunctionEmitContext *ctx) const {
             return NULL;
         }
         ctx->SetDebugPos(pos);
-        llvm::Value *tmpPtr = ctx->AllocaInst(baseExprType->LLVMType(g->ctx), "array_tmp");
+        llvm::Value *tmpPtr = ctx->AllocaInst(baseExprType->LLVMType(g->ctx), baseExprType, "array_tmp");
         ctx->StoreInst(val, tmpPtr);
 
         // Get a pointer type to the underlying elements
@@ -4694,7 +4694,7 @@ llvm::Value *VectorMemberExpr::GetValue(FunctionEmitContext *ctx) const {
         if (basePtr == NULL || basePtrType == NULL) {
             // Check that expression on the left side is a rvalue expression
             llvm::Value *exprValue = expr->GetValue(ctx);
-            basePtr = ctx->AllocaInst(expr->GetType()->LLVMType(g->ctx));
+            basePtr = ctx->AllocaInst(expr->GetType()->LLVMType(g->ctx), expr->GetType());
             basePtrType = PointerType::GetUniform(exprVectorType);
             if (basePtr == NULL || basePtrType == NULL) {
                 AssertPos(pos, m->errorCount > 0);
@@ -4704,7 +4704,7 @@ llvm::Value *VectorMemberExpr::GetValue(FunctionEmitContext *ctx) const {
         }
 
         // Allocate temporary memory to store the result
-        llvm::Value *resultPtr = ctx->AllocaInst(memberType->LLVMType(g->ctx), "vector_tmp");
+        llvm::Value *resultPtr = ctx->AllocaInst(memberType->LLVMType(g->ctx), memberType, "vector_tmp");
 
         // FIXME: we should be able to use the internal mask here according
         // to the same logic where it's used elsewhere
@@ -4843,7 +4843,7 @@ llvm::Value *MemberExpr::GetValue(FunctionEmitContext *ctx) const {
         }
         ctx->SetDebugPos(pos);
         const Type *exprType = expr->GetType();
-        llvm::Value *ptr = ctx->AllocaInst(exprType->LLVMType(g->ctx), "struct_tmp");
+        llvm::Value *ptr = ctx->AllocaInst(exprType->LLVMType(g->ctx), exprType, "struct_tmp");
         ctx->StoreInst(val, ptr);
 
         int elementNumber = getElementNumber();
@@ -7058,7 +7058,7 @@ llvm::Value *ReferenceExpr::GetValue(FunctionEmitContext *ctx) const {
         return NULL;
     }
 
-    llvm::Value *ptr = ctx->AllocaInst(llvmType);
+    llvm::Value *ptr = ctx->AllocaInst(llvmType, type);
     ctx->StoreInst(value, ptr);
     return ptr;
 }
