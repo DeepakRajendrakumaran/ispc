@@ -2507,10 +2507,12 @@ llvm::FunctionType *FunctionType::LLVMFunctionType(llvm::LLVMContext *ctx, bool 
         return NULL;
     }
 
-    llvm::Type *llvmReturnType = returnType->LLVMType(g->ctx);
+    bool inMemoryType = false;
+    if (CastType<AtomicType>(returnType) == NULL)
+        inMemoryType = true;
+    llvm::Type *llvmReturnType = returnType->LLVMType(g->ctx, inMemoryType);
     if (llvmReturnType == NULL)
         return NULL;
-
     return llvm::FunctionType::get(llvmReturnType, callTypes, false);
 }
 
