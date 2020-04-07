@@ -2084,7 +2084,7 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, const Type *type, c
             toReg = TruncInst(inst, type->LLVMType(g->ctx));
         else if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) <
                  g->target->getDataLayout()->getTypeSizeInBits(type->LLVMType(g->ctx)))
-            toReg = ZExtInst(inst, type->LLVMType(g->ctx));
+            toReg = SExtInst(inst, type->LLVMType(g->ctx));
         toReg->dump();
     }
     return toReg;
@@ -2214,7 +2214,7 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, llvm::Value *mask, 
                     inst = TruncInst(inst, elType->LLVMType(g->ctx));
                 else if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) <
                          g->target->getDataLayout()->getTypeSizeInBits(elType->LLVMType(g->ctx)))
-                    inst = ZExtInst(inst, elType->LLVMType(g->ctx));
+                    inst = SExtInst(inst, elType->LLVMType(g->ctx));
             }
             return inst;
         }
@@ -2520,7 +2520,7 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i8");
         if (g->target->getDataLayout()->getTypeSizeInBits(llvmValueType) <
             g->target->getDataLayout()->getTypeSizeInBits(llvmValueTypeInDisk))
-            value = ZExtInst(value, LLVMTypes::BoolDiskVectorType);
+            value = SExtInst(value, LLVMTypes::BoolDiskVectorType);
         else if (g->target->getDataLayout()->getTypeSizeInBits(llvmValueType) >
                  g->target->getDataLayout()->getTypeSizeInBits(llvmValueTypeInDisk))
             value = TruncInst(value, LLVMTypes::BoolDiskVectorType);
@@ -2665,7 +2665,7 @@ void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr, const 
         } else if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) <
                    g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
             printf("\n Zext \n");
-            toReg = ZExtInst(value, ptrType->LLVMType(g->ctx, true));
+            toReg = SExtInst(value, ptrType->LLVMType(g->ctx, true));
         }
     }
 
