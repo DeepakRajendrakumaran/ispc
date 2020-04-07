@@ -202,7 +202,8 @@ class Type {
         syntax. */
     virtual std::string GetCDeclaration(const std::string &name) const = 0;
 
-    /** Returns the LLVM type corresponding to this ispc type */
+    /** Returns the LLVM type corresponding to this ispc type
+     * isDiskType should be set to 'true' if asking for type in memory*/
     virtual llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const = 0;
 
     /** Returns the DIType (LLVM's debugging information structure),
