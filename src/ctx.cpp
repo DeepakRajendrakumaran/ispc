@@ -2297,6 +2297,10 @@ llvm::Value *FunctionEmitContext::gather(llvm::Value *ptr, const PointerType *pt
     const char *funcName = NULL;
     if (pt != NULL)
         funcName = g->target->is32Bit() ? "__pseudo_gather32_i32" : "__pseudo_gather64_i64";
+    // bool type is stored in memory are i8 but represented in register
+    // differently
+    else if (returnType->IsBoolType())
+        funcName = g->target->is32Bit() ? "__pseudo_gather32_i8" : "__pseudo_gather64_i8";
     else if (llvmReturnType == LLVMTypes::DoubleVectorType)
         funcName = g->target->is32Bit() ? "__pseudo_gather32_double" : "__pseudo_gather64_double";
     else if (llvmReturnType == LLVMTypes::Int64VectorType)
@@ -2323,6 +2327,15 @@ llvm::Value *FunctionEmitContext::gather(llvm::Value *ptr, const PointerType *pt
     if (disableGSWarningCount == 0)
         addGSMetadata(gatherCall, currentPos);
 
+    if (returnType->IsBoolType()) {
+        if (g->target->getDataLayout()->getTypeSizeInBits(returnType->LLVMType(g->ctx, true)) <
+            g->target->getDataLayout()->getTypeSizeInBits(llvmReturnType)) {
+            gatherCall = SExtInst(gatherCall, llvmReturnType);
+        } else if (g->target->getDataLayout()->getTypeSizeInBits(returnType->LLVMType(g->ctx, true)) >
+                   g->target->getDataLayout()->getTypeSizeInBits(llvmReturnType)) {
+            gatherCall = TruncInst(gatherCall, llvmReturnType);
+        }
+    }
     return gatherCall;
 }
 
@@ -2588,20 +2601,31 @@ void FunctionEmitContext::scatter(llvm::Value *value, llvm::Value *ptr, const Ty
               pt != NULL || CastType<AtomicType>(valueType) != NULL || CastType<EnumType>(valueType) != NULL);
 
     llvm::Type *type = value->getType();
+    llvm::Type *diskType = type;
+    if ((pt != NULL) && (valueType->IsBoolType())) {
+        diskType = LLVMTypes::BoolDiskVectorType;
+        if (g->target->getDataLayout()->getTypeSizeInBits(type) <
+            g->target->getDataLayout()->getTypeSizeInBits(diskType)) {
+            value = SExtInst(value, diskType);
+        } else if (g->target->getDataLayout()->getTypeSizeInBits(type) >
+                   g->target->getDataLayout()->getTypeSizeInBits(diskType)) {
+            value = TruncInst(value, diskType);
+        }
+    }
     const char *funcName = NULL;
     if (pt != NULL) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i32" : "__pseudo_scatter64_i64";
-    } else if (type == LLVMTypes::DoubleVectorType) {
+    } else if (diskType == LLVMTypes::DoubleVectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_double" : "__pseudo_scatter64_double";
-    } else if (type == LLVMTypes::Int64VectorType) {
+    } else if (diskType == LLVMTypes::Int64VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i64" : "__pseudo_scatter64_i64";
-    } else if (type == LLVMTypes::FloatVectorType) {
+    } else if (diskType == LLVMTypes::FloatVectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_float" : "__pseudo_scatter64_float";
-    } else if (type == LLVMTypes::Int32VectorType) {
+    } else if (diskType == LLVMTypes::Int32VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i32" : "__pseudo_scatter64_i32";
-    } else if (type == LLVMTypes::Int16VectorType) {
+    } else if (diskType == LLVMTypes::Int16VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i16" : "__pseudo_scatter64_i16";
-    } else if (type == LLVMTypes::Int8VectorType) {
+    } else if (diskType == LLVMTypes::Int8VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i8" : "__pseudo_scatter64_i8";
     }
 
