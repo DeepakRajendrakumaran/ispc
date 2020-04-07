@@ -2061,9 +2061,6 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, const Type *type, c
     if (name == NULL)
         name = LLVMGetName(ptr, "_load");
 
-    if (type)
-        printf("\n\n FunctionEmitContext::LoadInst 0 , name = %s, type = %s \n\n", name, type->GetString().c_str());
-
     llvm::LoadInst *inst = new llvm::LoadInst(ptr, name, bblock);
 
     if (g->opt.forceAlignedMemory && llvm::dyn_cast<llvm::VectorType>(pt->getElementType())) {
@@ -2078,14 +2075,12 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, const Type *type, c
 
     llvm::Instruction *toReg = inst;
     if ((type != NULL) && (type->IsBoolType()) && (CastType<AtomicType>(type) != NULL)) {
-        inst->dump();
         if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) >
             g->target->getDataLayout()->getTypeSizeInBits(type->LLVMType(g->ctx)))
             toReg = TruncInst(inst, type->LLVMType(g->ctx));
         else if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) <
                  g->target->getDataLayout()->getTypeSizeInBits(type->LLVMType(g->ctx)))
             toReg = SExtInst(inst, type->LLVMType(g->ctx));
-        toReg->dump();
     }
     return toReg;
 }
@@ -2166,7 +2161,6 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, llvm::Value *mask, 
 
     const PointerType *ptrType;
     const Type *elType;
-    printf("\n\n FunctionEmitContext::LoadInst : ptrRefType = %s , name = %s: ", ptrRefType->GetString().c_str(), name);
     if (CastType<ReferenceType>(ptrRefType) != NULL) {
         ptrType = PointerType::GetUniform(ptrRefType->GetReferenceTarget());
         elType = ptrRefType->GetReferenceTarget();
@@ -2376,11 +2370,6 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *p
         }
     }
 
-    // Deepak : To be Removed
-    if (ptrType) {
-        printf("\n\n FunctionEmitContext::AllocaInst : type = %s \n", ptrType->GetString().c_str());
-    }
-
     llvm::AllocaInst *inst = NULL;
     if (atEntryBlock) {
         // We usually insert it right before the jump instruction at the
@@ -2411,11 +2400,6 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *p
 #else // LLVM 10.0+
         inst->setAlignment(llvm::MaybeAlign(align));
 #endif
-    }
-    // Deepak : To be Removed
-    if (ptrType) {
-        inst->dump();
-        printf("\n FunctionEmitContext::AllocaInst DONE \n\n");
     }
     // Don't add debugging info to alloca instructions
     return inst;
@@ -2465,9 +2449,6 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
     llvm::Function *maskedStoreFunc = NULL;
     llvm::Type *llvmValueType = value->getType();
     llvm::Type *llvmValueTypeInDisk = llvmValueType;
-
-    printf("\n masked store valueType = %s ,ptrType = %s \n", valueType->GetString().c_str(),
-           ptrType->GetString().c_str());
 
     const PointerType *pt = CastType<PointerType>(valueType);
     // DEEPAK: Re-visit condition. Possibly need some checks
@@ -2531,10 +2512,6 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
     args.push_back(ptr);
     args.push_back(value);
     args.push_back(mask);
-    printf("\n\n arggs\n");
-    for (auto arggs : args)
-        arggs->dump();
-    maskedStoreFunc->dump();
     CallInst(maskedStoreFunc, NULL, args);
 }
 
@@ -2653,18 +2630,13 @@ void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr, const 
     llvm::PointerType *pt = llvm::dyn_cast<llvm::PointerType>(ptr->getType());
     AssertPos(currentPos, pt != NULL);
 
-    if (ptrType)
-        printf("\n\n FunctionEmitContext::StoreInst : ptrType = %s \n", ptrType->GetString().c_str());
     llvm::Value *toReg = value;
     if ((ptrType != NULL) && (ptrType->IsBoolType()) && (CastType<AtomicType>(ptrType) != NULL)) {
-        printf("\n ptrType = %s \n", ptrType->GetString().c_str());
         if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) >
             g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
-            printf("\n Trunc \n");
             toReg = TruncInst(value, ptrType->LLVMType(g->ctx, true));
         } else if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) <
                    g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
-            printf("\n Zext \n");
             toReg = SExtInst(value, ptrType->LLVMType(g->ctx, true));
         }
     }
