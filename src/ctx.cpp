@@ -2330,7 +2330,18 @@ llvm::Value *FunctionEmitContext::gather(llvm::Value *ptr, const PointerType *pt
     if (returnType->IsBoolType()) {
         if (g->target->getDataLayout()->getTypeSizeInBits(returnType->LLVMType(g->ctx, true)) <
             g->target->getDataLayout()->getTypeSizeInBits(llvmReturnType)) {
-            gatherCall = SExtInst(gatherCall, llvmReturnType);
+            // REVISIT : This scares me
+            // This is needed when array of bool is passed in from cpp side
+            // TRUE in clang is '1'. This is zero extended to i8
+            // In ispc, this is uniform * varying which after gather becomes
+            // varying bool. Varying bool is ispc is '-1'. The most
+            // significant bit being set to 1 is important for blendv
+            // operations is work as expected.
+            if (ptrType->GetBaseType()->IsUniformType()) {
+                gatherCall = TruncInst(gatherCall, LLVMTypes::Int1VectorType);
+                gatherCall = SExtInst(gatherCall, llvmReturnType);
+            } else
+                gatherCall = SExtInst(gatherCall, llvmReturnType);
         } else if (g->target->getDataLayout()->getTypeSizeInBits(returnType->LLVMType(g->ctx, true)) >
                    g->target->getDataLayout()->getTypeSizeInBits(llvmReturnType)) {
             gatherCall = TruncInst(gatherCall, llvmReturnType);

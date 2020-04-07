@@ -1589,7 +1589,7 @@ StructType::StructType(const std::string &n, const llvm::SmallVector<const Type 
                                                "supported.");
                     return;
                 } else
-                    elementTypes.push_back(type->LLVMType(g->ctx));
+                    elementTypes.push_back(type->LLVMType(g->ctx, true));
             }
         }
 
