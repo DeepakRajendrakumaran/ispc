@@ -89,6 +89,8 @@ llvm::VectorType *LLVMTypes::VoidPointerVectorType = NULL;
 
 llvm::Constant *LLVMTrue = NULL;
 llvm::Constant *LLVMFalse = NULL;
+llvm::Constant *LLVMTrueInStorage = NULL;
+llvm::Constant *LLVMFalseInStorage = NULL;
 llvm::Constant *LLVMMaskAllOn = NULL;
 llvm::Constant *LLVMMaskAllOff = NULL;
 
@@ -157,6 +159,8 @@ void InitLLVMUtil(llvm::LLVMContext *ctx, Target &target) {
 
     LLVMTrue = llvm::ConstantInt::getTrue(*ctx);
     LLVMFalse = llvm::ConstantInt::getFalse(*ctx);
+    LLVMTrueInStorage = llvm::ConstantInt::get(LLVMTypes::Int8Type, 0xff, false /*unsigned*/);
+    LLVMFalseInStorage = llvm::ConstantInt::get(LLVMTypes::Int8Type, 0x00, false /*unsigned*/);
 
     std::vector<llvm::Constant *> maskOnes;
     llvm::Constant *onMask = NULL;
@@ -434,6 +438,23 @@ llvm::Constant *LLVMBoolVector(const bool *bvec) {
             v = bvec[i] ? LLVMTrue : LLVMFalse;
         }
 
+        vals.push_back(v);
+    }
+    return llvm::ConstantVector::get(vals);
+}
+
+llvm::Constant *LLVMBoolVectorInStorage(bool b) {
+    llvm::Constant *v = b ? LLVMTrueInStorage : LLVMFalseInStorage;
+    std::vector<llvm::Constant *> vals;
+    for (int i = 0; i < g->target->getVectorWidth(); ++i)
+        vals.push_back(v);
+    return llvm::ConstantVector::get(vals);
+}
+
+llvm::Constant *LLVMBoolVectorInStorage(const bool *bvec) {
+    std::vector<llvm::Constant *> vals;
+    for (int i = 0; i < g->target->getVectorWidth(); ++i) {
+        llvm::Constant *v = llvm::ConstantInt::get(LLVMTypes::Int8Type, bvec[i] ? 0xff : 0, false /*unsigned*/);
         vals.push_back(v);
     }
     return llvm::ConstantVector::get(vals);
