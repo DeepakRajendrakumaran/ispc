@@ -3825,7 +3825,8 @@ std::pair<llvm::Constant *, bool> ExprList::GetConstant(const Type *type, bool i
     }
 
     if (CastType<StructType>(type) != NULL) {
-        llvm::StructType *llvmStructType = llvm::dyn_cast<llvm::StructType>(collectionType->LLVMType(g->ctx, isStorageType));
+        llvm::StructType *llvmStructType =
+            llvm::dyn_cast<llvm::StructType>(collectionType->LLVMType(g->ctx, isStorageType));
         AssertPos(pos, llvmStructType != NULL);
         return std::pair<llvm::Constant *, bool>(llvm::ConstantStruct::get(llvmStructType, cv),
                                                  isNotValidForMultiTargetGlobal);
@@ -5768,11 +5769,11 @@ std::pair<llvm::Constant *, bool> ConstExpr::GetConstant(const Type *constType, 
         GetValues(bv, constType->IsVaryingType());
         if (constType->IsUniformType()) {
             if (isStorageType)
-                return std::pair<llvm::Constant *, bool>(bv[0] ? LLVMTrueInStorage : LLVMFalseInStorage, isNotValidForMultiTargetGlobal);
+                return std::pair<llvm::Constant *, bool>(bv[0] ? LLVMTrueInStorage : LLVMFalseInStorage,
+                                                         isNotValidForMultiTargetGlobal);
             else
                 return std::pair<llvm::Constant *, bool>(bv[0] ? LLVMTrue : LLVMFalse, isNotValidForMultiTargetGlobal);
-        }
-        else {
+        } else {
             if (isStorageType)
                 return std::pair<llvm::Constant *, bool>(LLVMBoolVectorInStorage(bv), isNotValidForMultiTargetGlobal);
             else
@@ -6458,8 +6459,19 @@ static llvm::Value *lUniformValueToVarying(FunctionEmitContext *ctx, llvm::Value
         for (int i = 0; i < collectionType->GetElementCount(); ++i) {
             llvm::Value *v = ctx->ExtractInst(value, i, "get_element");
             // If struct has "bound uniform" member, we don't need to cast it to varying
-            if (!(structType != NULL && structType->GetElementType(i)->IsUniformType()))
-                v = lUniformValueToVarying(ctx, v, collectionType->GetElementType(i), pos);
+            if (!(structType != NULL && structType->GetElementType(i)->IsUniformType())) {
+                const Type *elemType = collectionType->GetElementType(i);
+                v = lUniformValueToVarying(ctx, v, elemType, pos);
+                if ((elemType->IsBoolType()) && (CastType<AtomicType>(elemType) != NULL)) {
+                    if (g->target->getDataLayout()->getTypeSizeInBits(v->getType()) >
+                        g->target->getDataLayout()->getTypeSizeInBits(LLVMTypes::BoolDiskVectorType)) {
+                        v = ctx->TruncInst(v, LLVMTypes::BoolDiskVectorType);
+                    } else if (g->target->getDataLayout()->getTypeSizeInBits(v->getType()) <
+                               g->target->getDataLayout()->getTypeSizeInBits(LLVMTypes::BoolDiskVectorType)) {
+                        v = ctx->SExtInst(v, LLVMTypes::BoolDiskVectorType);
+                    }
+                }
+            }
             retValue = ctx->InsertInst(retValue, v, i, "set_element");
         }
         return retValue;
@@ -7394,7 +7406,8 @@ std::pair<llvm::Constant *, bool> AddressOfExpr::GetConstant(const Type *type, b
                 std::vector<llvm::Value *> gepIndex;
                 Expr *mBaseExpr = NULL;
                 while (IExpr) {
-                    std::pair<llvm::Constant *, bool> cIndexPair = IExpr->index->GetConstant(IExpr->index->GetType(), isStorageType);
+                    std::pair<llvm::Constant *, bool> cIndexPair =
+                        IExpr->index->GetConstant(IExpr->index->GetType(), isStorageType);
                     llvm::Constant *cIndex = cIndexPair.first;
                     gepIndex.insert(gepIndex.begin(), cIndex);
                     mBaseExpr = IExpr->baseExpr;
