@@ -2082,6 +2082,17 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, const Type *type, c
                  g->target->getDataLayout()->getTypeSizeInBits(type->LLVMType(g->ctx)))
             toReg = SExtInst(inst, type->LLVMType(g->ctx));
     }
+    if ((type != NULL) && (CastType<VectorType>(type) != NULL) && (type->IsBoolType())) {
+        const VectorType *vType = CastType<VectorType>(type);
+        if (CastType<AtomicType>(vType->GetElementType()) != NULL) {
+            if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) >
+                g->target->getDataLayout()->getTypeSizeInBits(type->LLVMType(g->ctx)))
+                toReg = TruncInst(inst, type->LLVMType(g->ctx));
+            else if (g->target->getDataLayout()->getTypeSizeInBits(inst->getType()) <
+                     g->target->getDataLayout()->getTypeSizeInBits(type->LLVMType(g->ctx)))
+                toReg = SExtInst(inst, type->LLVMType(g->ctx));
+        }
+    }
     return toReg;
 }
 
@@ -2388,7 +2399,8 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *p
 
     llvm::Type *llvmTypeToDisk = llvmType;
     if (ptrType != NULL) {
-        if (((CastType<AtomicType>(ptrType) != NULL) && (ptrType->IsBoolType())) ||
+        if ((((CastType<AtomicType>(ptrType) != NULL) || (CastType<VectorType>(ptrType) != NULL)) &&
+             (ptrType->IsBoolType())) ||
             ((CastType<ArrayType>(ptrType) != NULL) && (ptrType->GetBaseType()->IsBoolType()))) {
             llvmTypeToDisk = ptrType->LLVMType(g->ctx, true);
         }
@@ -2675,6 +2687,18 @@ void FunctionEmitContext::StoreInst(llvm::Value *value, llvm::Value *ptr, const 
             toReg = SExtInst(value, ptrType->LLVMType(g->ctx, true));
         }
     }
+    if ((ptrType != NULL) && (CastType<VectorType>(ptrType) != NULL) && (ptrType->IsBoolType())) {
+        const VectorType *vType = CastType<VectorType>(ptrType);
+        if (CastType<AtomicType>(vType->GetElementType()) != NULL) {
+            if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) >
+                g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
+                toReg = TruncInst(value, ptrType->LLVMType(g->ctx, true));
+            } else if (g->target->getDataLayout()->getTypeSizeInBits(value->getType()) <
+                       g->target->getDataLayout()->getTypeSizeInBits(ptrType->LLVMType(g->ctx, true))) {
+                toReg = SExtInst(value, ptrType->LLVMType(g->ctx, true));
+            }
+        }
+    }
 
     llvm::StoreInst *inst = new llvm::StoreInst(toReg, ptr, bblock);
 
@@ -2826,7 +2850,6 @@ llvm::Value *FunctionEmitContext::ExtractInst(llvm::Value *v, int elt, const cha
         snprintf(buf, sizeof(buf), "_extract_%d", elt);
         name = LLVMGetName(v, buf);
     }
-
     llvm::Instruction *ei = NULL;
     if (llvm::isa<llvm::VectorType>(v->getType()))
         ei = llvm::ExtractElementInst::Create(v, LLVMInt32(elt), name, bblock);

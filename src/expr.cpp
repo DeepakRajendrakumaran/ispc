@@ -6692,13 +6692,24 @@ llvm::Value *TypeCastExpr::GetValue(FunctionEmitContext *ctx) const {
         // llvm::VectorTypes, we should just be able to issue the
         // corresponding vector type convert, which should be more
         // efficient by avoiding serialization!
-        llvm::Value *cast = llvm::UndefValue::get(toType->LLVMType(g->ctx));
+        llvm::Value *cast = llvm::UndefValue::get(toType->LLVMType(g->ctx, true));
         for (int i = 0; i < toVector->GetElementCount(); ++i) {
             llvm::Value *ei = ctx->ExtractInst(exprVal, i);
-
             llvm::Value *conv = lTypeConvAtomic(ctx, ei, toVector->GetElementType(), fromVector->GetElementType(), pos);
             if (!conv)
                 return NULL;
+            if ((toVector->GetElementType()->IsBoolType()) &&
+                (CastType<AtomicType>(toVector->GetElementType()) != NULL)) {
+                if (g->target->getDataLayout()->getTypeSizeInBits(conv->getType()) >
+                    g->target->getDataLayout()->getTypeSizeInBits(toVector->GetElementType()->LLVMType(g->ctx, true))) {
+                    conv = ctx->TruncInst(conv, toVector->GetElementType()->LLVMType(g->ctx, true));
+                } else if (g->target->getDataLayout()->getTypeSizeInBits(conv->getType()) <
+                           g->target->getDataLayout()->getTypeSizeInBits(
+                               toVector->GetElementType()->LLVMType(g->ctx, true))) {
+                    conv = ctx->SExtInst(conv, toVector->GetElementType()->LLVMType(g->ctx, true));
+                }
+            }
+
             cast = ctx->InsertInst(cast, conv, i);
         }
         return cast;
@@ -6728,14 +6739,26 @@ llvm::Value *TypeCastExpr::GetValue(FunctionEmitContext *ctx) const {
             return NULL;
 
         llvm::Value *cast = NULL;
-        llvm::Type *toTypeLLVM = toType->LLVMType(g->ctx);
+        llvm::Type *toTypeLLVM = toType->LLVMType(g->ctx, true);
         if (llvm::isa<llvm::VectorType>(toTypeLLVM)) {
             // Example uniform float => uniform float<3>
             cast = ctx->BroadcastValue(conv, toTypeLLVM);
         } else if (llvm::isa<llvm::ArrayType>(toTypeLLVM)) {
             // Example varying float => varying float<3>
-            cast = llvm::UndefValue::get(toType->LLVMType(g->ctx));
+            cast = llvm::UndefValue::get(toType->LLVMType(g->ctx, true));
             for (int i = 0; i < toVector->GetElementCount(); ++i) {
+                if ((toVector->GetElementType()->IsBoolType()) &&
+                    (CastType<AtomicType>(toVector->GetElementType()) != NULL)) {
+                    if (g->target->getDataLayout()->getTypeSizeInBits(conv->getType()) >
+                        g->target->getDataLayout()->getTypeSizeInBits(
+                            toVector->GetElementType()->LLVMType(g->ctx, true))) {
+                        conv = ctx->TruncInst(conv, toVector->GetElementType()->LLVMType(g->ctx, true));
+                    } else if (g->target->getDataLayout()->getTypeSizeInBits(conv->getType()) <
+                               g->target->getDataLayout()->getTypeSizeInBits(
+                                   toVector->GetElementType()->LLVMType(g->ctx, true))) {
+                        conv = ctx->SExtInst(conv, toVector->GetElementType()->LLVMType(g->ctx, true));
+                    }
+                }
                 // Here's InsertInst produces InsertValueInst.
                 cast = ctx->InsertInst(cast, conv, i);
             }
