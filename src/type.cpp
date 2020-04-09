@@ -461,7 +461,7 @@ std::string AtomicType::GetCDeclaration(const std::string &name) const {
     return ret;
 }
 
-llvm::Type *AtomicType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *AtomicType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     Assert(variability.type != Variability::Unbound);
     bool isUniform = (variability == Variability::Uniform);
     bool isVarying = (variability == Variability::Varying);
@@ -471,8 +471,8 @@ llvm::Type *AtomicType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const 
         case TYPE_VOID:
             return llvm::Type::getVoidTy(*ctx);
         case TYPE_BOOL:
-            if (isDiskType)
-                return isUniform ? LLVMTypes::BoolDiskType : LLVMTypes::BoolDiskVectorType;
+            if (isStorageType)
+                return isUniform ? LLVMTypes::BoolStorageType : LLVMTypes::BoolVectorStorageType;
             return isUniform ? LLVMTypes::BoolType : LLVMTypes::BoolVectorType;
         case TYPE_INT8:
         case TYPE_UINT8:
@@ -713,7 +713,7 @@ std::string EnumType::GetCDeclaration(const std::string &varName) const {
     return ret;
 }
 
-llvm::Type *EnumType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *EnumType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     Assert(variability != Variability::Unbound);
 
     switch (variability.type) {
@@ -723,7 +723,7 @@ llvm::Type *EnumType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
         return LLVMTypes::Int32VectorType;
     case Variability::SOA: {
         ArrayType at(AtomicType::UniformInt32, variability.soaWidth);
-        return at.LLVMType(ctx, isDiskType);
+        return at.LLVMType(ctx, isStorageType);
     }
     default:
         FATAL("Unexpected variability in EnumType::LLVMType()");
@@ -971,7 +971,7 @@ std::string PointerType::GetCDeclaration(const std::string &name) const {
     return ret;
 }
 
-llvm::Type *PointerType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *PointerType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     if (baseType == NULL) {
         Assert(m->errorCount > 0);
         return NULL;
@@ -1010,7 +1010,7 @@ llvm::Type *PointerType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const
             if (baseType->IsVoidType())
                 ptype = LLVMTypes::VoidPointerType;
             else
-                ptype = llvm::PointerType::get(baseType->LLVMType(ctx, isDiskType), 0);
+                ptype = llvm::PointerType::get(baseType->LLVMType(ctx, isStorageType), 0);
         }
         return ptype;
     }
@@ -1020,7 +1020,7 @@ llvm::Type *PointerType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const
         return LLVMTypes::VoidPointerVectorType;
     case Variability::SOA: {
         ArrayType at(GetAsUniformType(), variability.soaWidth);
-        return at.LLVMType(ctx, isDiskType);
+        return at.LLVMType(ctx, isStorageType);
     }
     default:
         FATAL("Unexpected variability in PointerType::LLVMType()");
@@ -1068,13 +1068,13 @@ ArrayType::ArrayType(const Type *c, int a) : SequentialType(ARRAY_TYPE), child(c
     Assert(c->IsVoidType() == false);
 }
 
-llvm::ArrayType *ArrayType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::ArrayType *ArrayType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     if (child == NULL) {
         Assert(m->errorCount > 0);
         return NULL;
     }
 
-    llvm::Type *ct = child->LLVMType(ctx, isDiskType);
+    llvm::Type *ct = child->LLVMType(ctx, isStorageType);
     if (ct == NULL) {
         Assert(m->errorCount > 0);
         return NULL;
@@ -1406,13 +1406,13 @@ int VectorType::GetElementCount() const { return numElements; }
 
 const AtomicType *VectorType::GetElementType() const { return base; }
 
-llvm::Type *VectorType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *VectorType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     if (base == NULL) {
         Assert(m->errorCount > 0);
         return NULL;
     }
 
-    llvm::Type *bt = base->LLVMType(ctx, isDiskType);
+    llvm::Type *bt = base->LLVMType(ctx, isStorageType);
     if (!bt)
         return NULL;
 
@@ -1783,7 +1783,7 @@ std::string StructType::GetCDeclaration(const std::string &n) const {
     return ret;
 }
 
-llvm::Type *StructType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *StructType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     Assert(variability != Variability::Unbound);
     std::string mname = lMangleStructName(name, variability);
     if (lStructTypeMap.find(mname) == lStructTypeMap.end()) {
@@ -1987,7 +1987,7 @@ std::string UndefinedStructType::GetCDeclaration(const std::string &n) const {
     return ret;
 }
 
-llvm::Type *UndefinedStructType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *UndefinedStructType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     Assert(variability != Variability::Unbound);
     std::string mname = lMangleStructName(name, variability);
     if (lStructTypeMap.find(mname) == lStructTypeMap.end()) {
@@ -2194,13 +2194,13 @@ std::string ReferenceType::GetCDeclaration(const std::string &name) const {
     }
 }
 
-llvm::Type *ReferenceType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *ReferenceType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     if (targetType == NULL) {
         Assert(m->errorCount > 0);
         return NULL;
     }
 
-    llvm::Type *t = targetType->LLVMType(ctx, isDiskType);
+    llvm::Type *t = targetType->LLVMType(ctx, isStorageType);
     if (t == NULL) {
         Assert(m->errorCount > 0);
         return NULL;
@@ -2404,7 +2404,7 @@ std::string FunctionType::GetCDeclarationForDispatch(const std::string &fname) c
     return ret;
 }
 
-llvm::Type *FunctionType::LLVMType(llvm::LLVMContext *ctx, bool isDiskType) const {
+llvm::Type *FunctionType::LLVMType(llvm::LLVMContext *ctx, bool isStorageType) const {
     FATAL("FunctionType::LLVMType() shouldn't be called");
     return NULL;
 }
@@ -2463,11 +2463,11 @@ llvm::FunctionType *FunctionType::LLVMFunctionType(llvm::LLVMContext *ctx, bool 
         }
         Assert(paramTypes[i]->IsVoidType() == false);
 
-        bool inMemoryType = false;
+        bool isStorageType = false;
         if (CastType<AtomicType>(paramTypes[i]) == NULL)
-            inMemoryType = true;
+            isStorageType = true;
 
-        llvm::Type *t = paramTypes[i]->LLVMType(ctx, inMemoryType);
+        llvm::Type *t = paramTypes[i]->LLVMType(ctx, isStorageType);
         if (t == NULL) {
             Assert(m->errorCount > 0);
             return NULL;
@@ -2507,10 +2507,10 @@ llvm::FunctionType *FunctionType::LLVMFunctionType(llvm::LLVMContext *ctx, bool 
         return NULL;
     }
 
-    bool inMemoryType = false;
+    bool isStorageType = false;
     if (CastType<AtomicType>(returnType) == NULL)
-        inMemoryType = true;
-    llvm::Type *llvmReturnType = returnType->LLVMType(g->ctx, inMemoryType);
+        isStorageType = true;
+    llvm::Type *llvmReturnType = returnType->LLVMType(g->ctx, isStorageType);
     if (llvmReturnType == NULL)
         return NULL;
     return llvm::FunctionType::get(llvmReturnType, callTypes, false);

@@ -2397,12 +2397,12 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *p
         return NULL;
     }
 
-    llvm::Type *llvmTypeToDisk = llvmType;
+    llvm::Type *llvmStorageType = llvmType;
     if (ptrType != NULL) {
         if ((((CastType<AtomicType>(ptrType) != NULL) || (CastType<VectorType>(ptrType) != NULL)) &&
              (ptrType->IsBoolType())) ||
             ((CastType<ArrayType>(ptrType) != NULL) && (ptrType->GetBaseType()->IsBoolType()))) {
-            llvmTypeToDisk = ptrType->LLVMType(g->ctx, true);
+            llvmStorageType = ptrType->LLVMType(g->ctx, true);
         }
     }
 
@@ -2413,12 +2413,12 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *p
         llvm::Instruction *retInst = allocaBlock->getTerminator();
         AssertPos(currentPos, retInst);
         unsigned AS = llvmFunction->getParent()->getDataLayout().getAllocaAddrSpace();
-        inst = new llvm::AllocaInst(llvmTypeToDisk, AS, name ? name : "", retInst);
+        inst = new llvm::AllocaInst(llvmStorageType, AS, name ? name : "", retInst);
     } else {
         // Unless the caller overrode the default and wants it in the
         // current basic block
         unsigned AS = llvmFunction->getParent()->getDataLayout().getAllocaAddrSpace();
-        inst = new llvm::AllocaInst(llvmTypeToDisk, AS, name ? name : "", bblock);
+        inst = new llvm::AllocaInst(llvmStorageType, AS, name ? name : "", bblock);
     }
 
     // If no alignment was specified but we have an array of a uniform
@@ -2426,7 +2426,7 @@ llvm::Value *FunctionEmitContext::AllocaInst(llvm::Type *llvmType, const Type *p
     // unlikely that this array will be loaded into varying variables with
     // what will be aligned accesses if the uniform -> varying load is done
     // in regular chunks.
-    llvm::ArrayType *arrayType = llvm::dyn_cast<llvm::ArrayType>(llvmTypeToDisk);
+    llvm::ArrayType *arrayType = llvm::dyn_cast<llvm::ArrayType>(llvmStorageType);
     if (align == 0 && arrayType != NULL && !llvm::isa<llvm::VectorType>(arrayType->getElementType()))
         align = g->target->getNativeVectorAlignment();
 
@@ -2484,12 +2484,12 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
     // Figure out if we need a 8, 16, 32 or 64-bit masked store.
     llvm::Function *maskedStoreFunc = NULL;
     llvm::Type *llvmValueType = value->getType();
-    llvm::Type *llvmValueTypeInDisk = llvmValueType;
+    llvm::Type *llvmValueStorageType = llvmValueType;
 
     const PointerType *pt = CastType<PointerType>(valueType);
     // DEEPAK: Re-visit condition. Possibly need some checks
     if ((pt == NULL) && (valueType->IsBoolType()) /* && (CastType<AtomicType>(ptrType) != NULL)*/) {
-        llvmValueTypeInDisk = LLVMTypes::BoolDiskVectorType;
+        llvmValueStorageType = LLVMTypes::BoolVectorStorageType;
     }
     if (pt != NULL) {
         if (pt->IsSlice()) {
@@ -2523,24 +2523,24 @@ void FunctionEmitContext::maskedStore(llvm::Value *value, llvm::Value *ptr, cons
         llvm::Value *final = BinaryOperator(llvm::Instruction::Or, maskedOld, maskedNew, "old_new_result");
         StoreInst(final, ptr, valueType);
         return;
-    } else if (llvmValueTypeInDisk == LLVMTypes::DoubleVectorType) {
+    } else if (llvmValueStorageType == LLVMTypes::DoubleVectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_double");
-    } else if (llvmValueTypeInDisk == LLVMTypes::Int64VectorType) {
+    } else if (llvmValueStorageType == LLVMTypes::Int64VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i64");
-    } else if (llvmValueTypeInDisk == LLVMTypes::FloatVectorType) {
+    } else if (llvmValueStorageType == LLVMTypes::FloatVectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_float");
-    } else if (llvmValueTypeInDisk == LLVMTypes::Int32VectorType) {
+    } else if (llvmValueStorageType == LLVMTypes::Int32VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i32");
-    } else if (llvmValueTypeInDisk == LLVMTypes::Int16VectorType) {
+    } else if (llvmValueStorageType == LLVMTypes::Int16VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i16");
-    } else if (llvmValueTypeInDisk == LLVMTypes::Int8VectorType) {
+    } else if (llvmValueStorageType == LLVMTypes::Int8VectorType) {
         maskedStoreFunc = m->module->getFunction("__pseudo_masked_store_i8");
         if (g->target->getDataLayout()->getTypeSizeInBits(llvmValueType) <
-            g->target->getDataLayout()->getTypeSizeInBits(llvmValueTypeInDisk))
-            value = SExtInst(value, LLVMTypes::BoolDiskVectorType);
+            g->target->getDataLayout()->getTypeSizeInBits(llvmValueStorageType))
+            value = SExtInst(value, LLVMTypes::BoolVectorStorageType);
         else if (g->target->getDataLayout()->getTypeSizeInBits(llvmValueType) >
-                 g->target->getDataLayout()->getTypeSizeInBits(llvmValueTypeInDisk))
-            value = TruncInst(value, LLVMTypes::BoolDiskVectorType);
+                 g->target->getDataLayout()->getTypeSizeInBits(llvmValueStorageType))
+            value = TruncInst(value, LLVMTypes::BoolVectorStorageType);
     }
     AssertPos(currentPos, maskedStoreFunc != NULL);
 
@@ -2624,31 +2624,31 @@ void FunctionEmitContext::scatter(llvm::Value *value, llvm::Value *ptr, const Ty
               pt != NULL || CastType<AtomicType>(valueType) != NULL || CastType<EnumType>(valueType) != NULL);
 
     llvm::Type *type = value->getType();
-    llvm::Type *diskType = type;
+    llvm::Type *llvmStorageType = type;
     if ((pt != NULL) && (valueType->IsBoolType())) {
-        diskType = LLVMTypes::BoolDiskVectorType;
+        llvmStorageType = LLVMTypes::BoolVectorStorageType;
         if (g->target->getDataLayout()->getTypeSizeInBits(type) <
-            g->target->getDataLayout()->getTypeSizeInBits(diskType)) {
-            value = SExtInst(value, diskType);
+            g->target->getDataLayout()->getTypeSizeInBits(llvmStorageType)) {
+            value = SExtInst(value, llvmStorageType);
         } else if (g->target->getDataLayout()->getTypeSizeInBits(type) >
-                   g->target->getDataLayout()->getTypeSizeInBits(diskType)) {
-            value = TruncInst(value, diskType);
+                   g->target->getDataLayout()->getTypeSizeInBits(llvmStorageType)) {
+            value = TruncInst(value, llvmStorageType);
         }
     }
     const char *funcName = NULL;
     if (pt != NULL) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i32" : "__pseudo_scatter64_i64";
-    } else if (diskType == LLVMTypes::DoubleVectorType) {
+    } else if (llvmStorageType == LLVMTypes::DoubleVectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_double" : "__pseudo_scatter64_double";
-    } else if (diskType == LLVMTypes::Int64VectorType) {
+    } else if (llvmStorageType == LLVMTypes::Int64VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i64" : "__pseudo_scatter64_i64";
-    } else if (diskType == LLVMTypes::FloatVectorType) {
+    } else if (llvmStorageType == LLVMTypes::FloatVectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_float" : "__pseudo_scatter64_float";
-    } else if (diskType == LLVMTypes::Int32VectorType) {
+    } else if (llvmStorageType == LLVMTypes::Int32VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i32" : "__pseudo_scatter64_i32";
-    } else if (diskType == LLVMTypes::Int16VectorType) {
+    } else if (llvmStorageType == LLVMTypes::Int16VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i16" : "__pseudo_scatter64_i16";
-    } else if (diskType == LLVMTypes::Int8VectorType) {
+    } else if (llvmStorageType == LLVMTypes::Int8VectorType) {
         funcName = g->target->is32Bit() ? "__pseudo_scatter32_i8" : "__pseudo_scatter64_i8";
     }
 

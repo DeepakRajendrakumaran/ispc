@@ -6464,11 +6464,11 @@ static llvm::Value *lUniformValueToVarying(FunctionEmitContext *ctx, llvm::Value
                 v = lUniformValueToVarying(ctx, v, elemType, pos);
                 if ((elemType->IsBoolType()) && (CastType<AtomicType>(elemType) != NULL)) {
                     if (g->target->getDataLayout()->getTypeSizeInBits(v->getType()) >
-                        g->target->getDataLayout()->getTypeSizeInBits(LLVMTypes::BoolDiskVectorType)) {
-                        v = ctx->TruncInst(v, LLVMTypes::BoolDiskVectorType);
+                        g->target->getDataLayout()->getTypeSizeInBits(LLVMTypes::BoolVectorStorageType)) {
+                        v = ctx->TruncInst(v, LLVMTypes::BoolVectorStorageType);
                     } else if (g->target->getDataLayout()->getTypeSizeInBits(v->getType()) <
-                               g->target->getDataLayout()->getTypeSizeInBits(LLVMTypes::BoolDiskVectorType)) {
-                        v = ctx->SExtInst(v, LLVMTypes::BoolDiskVectorType);
+                               g->target->getDataLayout()->getTypeSizeInBits(LLVMTypes::BoolVectorStorageType)) {
+                        v = ctx->SExtInst(v, LLVMTypes::BoolVectorStorageType);
                     }
                 }
             }

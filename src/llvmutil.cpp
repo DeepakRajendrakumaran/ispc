@@ -50,7 +50,7 @@ llvm::Type *LLVMTypes::VoidType = NULL;
 llvm::PointerType *LLVMTypes::VoidPointerType = NULL;
 llvm::Type *LLVMTypes::PointerIntType = NULL;
 llvm::Type *LLVMTypes::BoolType = NULL;
-llvm::Type *LLVMTypes::BoolDiskType = NULL;
+llvm::Type *LLVMTypes::BoolStorageType = NULL;
 
 llvm::Type *LLVMTypes::Int8Type = NULL;
 llvm::Type *LLVMTypes::Int16Type = NULL;
@@ -68,7 +68,7 @@ llvm::Type *LLVMTypes::DoublePointerType = NULL;
 
 llvm::VectorType *LLVMTypes::MaskType = NULL;
 llvm::VectorType *LLVMTypes::BoolVectorType = NULL;
-llvm::VectorType *LLVMTypes::BoolDiskVectorType = NULL;
+llvm::VectorType *LLVMTypes::BoolVectorStorageType = NULL;
 
 llvm::VectorType *LLVMTypes::Int1VectorType = NULL;
 llvm::VectorType *LLVMTypes::Int8VectorType = NULL;
@@ -100,7 +100,7 @@ void InitLLVMUtil(llvm::LLVMContext *ctx, Target &target) {
     LLVMTypes::PointerIntType = target.is32Bit() ? llvm::Type::getInt32Ty(*ctx) : llvm::Type::getInt64Ty(*ctx);
 
     LLVMTypes::BoolType = llvm::Type::getInt1Ty(*ctx);
-    LLVMTypes::Int8Type = LLVMTypes::BoolDiskType = llvm::Type::getInt8Ty(*ctx);
+    LLVMTypes::Int8Type = LLVMTypes::BoolStorageType = llvm::Type::getInt8Ty(*ctx);
     LLVMTypes::Int16Type = llvm::Type::getInt16Ty(*ctx);
     LLVMTypes::Int32Type = llvm::Type::getInt32Ty(*ctx);
     LLVMTypes::Int64Type = llvm::Type::getInt64Ty(*ctx);
@@ -140,7 +140,7 @@ void InitLLVMUtil(llvm::LLVMContext *ctx, Target &target) {
     }
 
     LLVMTypes::Int1VectorType = llvm::VectorType::get(llvm::Type::getInt1Ty(*ctx), target.getVectorWidth());
-    LLVMTypes::Int8VectorType = LLVMTypes::BoolDiskVectorType =
+    LLVMTypes::Int8VectorType = LLVMTypes::BoolVectorStorageType =
         llvm::VectorType::get(LLVMTypes::Int8Type, target.getVectorWidth());
     LLVMTypes::Int16VectorType = llvm::VectorType::get(LLVMTypes::Int16Type, target.getVectorWidth());
     LLVMTypes::Int32VectorType = llvm::VectorType::get(LLVMTypes::Int32Type, target.getVectorWidth());

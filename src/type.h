@@ -203,8 +203,8 @@ class Type {
     virtual std::string GetCDeclaration(const std::string &name) const = 0;
 
     /** Returns the LLVM type corresponding to this ispc type
-     * isDiskType should be set to 'true' if asking for type in memory*/
-    virtual llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const = 0;
+     * isStorageType should be set to 'true' if asking for type in memory*/
+    virtual llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const = 0;
 
     /** Returns the DIType (LLVM's debugging information structure),
         corresponding to this type. */
@@ -292,7 +292,7 @@ class AtomicType : public Type {
     std::string Mangle() const;
     std::string GetCDeclaration(const std::string &name) const;
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
@@ -373,7 +373,7 @@ class EnumType : public Type {
     /** Returns the name of the enum type.  (e.g. struct Foo -> "Foo".) */
     const std::string &GetEnumName() const { return name; }
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
@@ -453,7 +453,7 @@ class PointerType : public Type {
     std::string Mangle() const;
     std::string GetCDeclaration(const std::string &name) const;
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
@@ -555,7 +555,7 @@ class ArrayType : public SequentialType {
     std::string GetCDeclaration(const std::string &name) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
-    llvm::ArrayType *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::ArrayType *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     /** This method returns the total number of elements in the array,
         including all dimensions if this is a multidimensional array. */
@@ -621,7 +621,7 @@ class VectorType : public SequentialType {
     std::string Mangle() const;
     std::string GetCDeclaration(const std::string &name) const;
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
@@ -672,7 +672,7 @@ class StructType : public CollectionType {
     std::string Mangle() const;
     std::string GetCDeclaration(const std::string &name) const;
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
@@ -759,7 +759,7 @@ class UndefinedStructType : public Type {
     std::string Mangle() const;
     std::string GetCDeclaration(const std::string &name) const;
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
@@ -802,7 +802,7 @@ class ReferenceType : public Type {
     std::string Mangle() const;
     std::string GetCDeclaration(const std::string &name) const;
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
@@ -853,7 +853,7 @@ class FunctionType : public Type {
     std::string GetCDeclaration(const std::string &fname) const;
     std::string GetCDeclarationForDispatch(const std::string &fname) const;
 
-    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isDiskType = false) const;
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx, bool isStorageType = false) const;
 
     llvm::DIType *GetDIType(llvm::DIScope *scope) const;
 
