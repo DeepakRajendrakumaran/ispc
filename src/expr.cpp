@@ -6451,7 +6451,7 @@ static llvm::Value *lUniformValueToVarying(FunctionEmitContext *ctx, llvm::Value
     // varying (if needed) and populate the return value.
     const CollectionType *collectionType = CastType<CollectionType>(type);
     if (collectionType != NULL) {
-        llvm::Type *llvmType = type->GetAsVaryingType()->LLVMType(g->ctx);
+        llvm::Type *llvmType = type->GetAsVaryingType()->LLVMType(g->ctx, true);
         llvm::Value *retValue = llvm::UndefValue::get(llvmType);
 
         const StructType *structType = CastType<StructType>(type->GetAsVaryingType());
@@ -6461,7 +6461,15 @@ static llvm::Value *lUniformValueToVarying(FunctionEmitContext *ctx, llvm::Value
             // If struct has "bound uniform" member, we don't need to cast it to varying
             if (!(structType != NULL && structType->GetElementType(i)->IsUniformType())) {
                 const Type *elemType = collectionType->GetElementType(i);
+                // If member is a uniform bool, it needs to be truncated to i1 since
+                // uniform  bool in IR is i1 and i8 in struct
+                // Consider switching to just a broadcast for bool
+                if ((elemType->IsBoolType()) && (CastType<AtomicType>(elemType) != NULL)) {
+                    v = ctx->TruncInst(v, LLVMTypes::BoolType);
+                }
                 v = lUniformValueToVarying(ctx, v, elemType, pos);
+                // If the extracted element if bool and varying needs to be
+                // converted back to i8 vector to insert into varying struct.
                 if ((elemType->IsBoolType()) && (CastType<AtomicType>(elemType) != NULL)) {
                     if (g->target->getDataLayout()->getTypeSizeInBits(v->getType()) >
                         g->target->getDataLayout()->getTypeSizeInBits(LLVMTypes::BoolVectorStorageType)) {
