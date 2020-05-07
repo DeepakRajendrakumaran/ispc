@@ -524,6 +524,8 @@ int main(int Argc, char *Argv[]) {
     LLVMInitializeWebAssemblyTargetMC();
 #endif
 
+    llvm::timeTraceProfilerInitialize(500, "ispc");
+
     char *file = NULL;
     const char *headerFileName = NULL;
     const char *outFileName = NULL;

@@ -2392,6 +2392,10 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
                              OutputFlags outputFlags, OutputType outputType, const char *outFileName,
                              const char *headerFileName, const char *includeFileName, const char *depsFileName,
                              const char *depsTargetName, const char *hostStubFileName, const char *devStubFileName) {
+    llvm::timeTraceProfilerBegin("Source", llvm::StringRef("DEEPAK_FILE"));
+    {
+        llvm::TimeTraceScope TimeScope("Module::CompileAndOutput", llvm::StringRef(""));
+    }
     if (targets.size() == 0 || targets.size() == 1) {
         // We're only compiling to a single target
         // TODO something wrong here
@@ -2459,6 +2463,30 @@ int Module::CompileAndOutput(const char *srcFile, Arch arch, const char *cpu, st
 
         delete g->target;
         g->target = NULL;
+
+        /*llvm::SmallString<128> Path("/home/deepak/DPCPP/ISPC/Bug_features/CompileTime/Compiletime/deepak.ispc");
+        llvm::sys::path::replace_extension(Path, "json");
+        std::string OutFile = Path.str();*/
+        std::string OutFile("/home/deepak/DPCPP/ISPC/Bug_features/CompileTime/Compiletime/deepak.json");
+        std::unique_ptr<llvm::raw_fd_ostream> OS;
+        std::string OSFile;
+        std::error_code Error;
+        if (!OS) {
+            OSFile = OutFile;
+            OS.reset(new llvm::raw_fd_ostream( OSFile, Error, llvm::sys::fs::OF_Text));
+            if (Error)
+                printf("\nWHOOPS\n");
+        }
+        if (!OS->supportsSeeking())
+            printf("\nWHOOPS\n");
+        auto profilerOutput = std::move(OS);
+
+
+
+        //auto profilerOutput = fopen(Path.str().str().c_str(), "w");
+        llvm::timeTraceProfilerEnd();
+        llvm::timeTraceProfilerWrite(*profilerOutput);
+        llvm::timeTraceProfilerCleanup();
 
         return errorCount > 0;
     } else {

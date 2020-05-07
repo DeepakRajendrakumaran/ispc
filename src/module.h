@@ -41,6 +41,7 @@
 #include "ast.h"
 #include "ispc.h"
 #include <llvm/IR/DebugInfo.h>
+#include <llvm/Support/TimeProfiler.h>
 
 namespace llvm {
 class raw_string_ostream;
