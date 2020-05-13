@@ -1,0 +1,1 @@
+ispc.exe "PBDJointSolverGaussSeidel.ispc" -h "PBDJointSolverGaussSeidel.ispc.generated.h" --target-os=windows --arch=x86-64 --target=avx512skx-i32x8,avx2,avx,sse4,sse2 -MMM "PBDJointSolverGaussSeidel.ispc.txt" -I"."

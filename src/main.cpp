@@ -54,6 +54,10 @@
 #include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include <chrono>
+#include <iostream>
+using namespace std::chrono;
+
 #ifdef ISPC_HOST_IS_WINDOWS
 #define strcasecmp stricmp
 #ifndef BUILD_DATE
@@ -965,6 +969,11 @@ int main(int Argc, char *Argv[]) {
         }
     }
 
-    return Module::CompileAndOutput(file, arch, cpu, targets, flags, ot, outFileName, headerFileName, includeFileName,
+    auto time_Compile = high_resolution_clock::now();
+    int retCompileAndOutput = Module::CompileAndOutput(file, arch, cpu, targets, flags, ot, outFileName, headerFileName, includeFileName,
                                     depsFileName, depsTargetName, hostStubFileName, devStubFileName);
+    auto time_Compile1 = high_resolution_clock::now() - time_Compile;
+    std::cout << "Elapsed time comPileFile :  " << duration<double, std::milli>(time_Compile1).count() << ".\n";    
+    
+    return retCompileAndOutput;
 }
