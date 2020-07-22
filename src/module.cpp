@@ -1178,11 +1178,11 @@ static void lEmitVectorTypedefs(const std::vector<const VectorType *> &types, FI
     for (unsigned int i = 0; i < types.size(); ++i) {
         std::string baseDecl;
         const VectorType *vt = types[i]->GetAsNonConstType();
-        if (!vt->IsUniformType())
+        /*if (!vt->IsUniformType())
             // Varying stuff shouldn't be visibile to / used by the
             // application, so at least make it not simple to access it by
             // not declaring the type here...
-            continue;
+            continue;*/
 
         int size = vt->GetElementCount();
 
