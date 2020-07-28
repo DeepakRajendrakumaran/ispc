@@ -469,6 +469,9 @@ void Function::GenerateIR() {
                     if (function->hasParamAttribute(i, llvm::Attribute::NoAlias)) {
                         appFunction->addParamAttr(i, llvm::Attribute::NoAlias);
                     }
+                    if (function->hasParamAttribute(i, llvm::Attribute::InReg)) {
+                        appFunction->addParamAttr(i, llvm::Attribute::InReg);
+                    }
                 }
                 g->target->markFuncWithTargetAttr(appFunction);
 

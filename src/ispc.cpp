@@ -69,6 +69,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <llvm/ADT/SmallBitVector.h>
 
 Globals *g;
 Module *m;
@@ -1320,10 +1321,572 @@ void Target::markFuncWithTargetAttr(llvm::Function *func) {
     }
 }
 
+
+/// <summary>
+/// ////////////////////////////////
+struct CCState {
+    CCState(int argSize) : IsPreassigned(argSize) {}
+
+    llvm::SmallBitVector IsPreassigned;
+    unsigned FreeRegs = 0;
+    unsigned FreeSSERegs = 0;
+};
+
+
+/// Returns true if this aggregate is small enough to be passed in SSE registers
+/// in the X86_VectorCall calling convention. Shared between x86_32 and x86_64.
+static bool isX86VectorCallAggregateSmallEnough(uint64_t NumMembers) { return NumMembers <= 4; }
+
+/// Returns true if this type can be passed in SSE registers with the
+/// X86_VectorCall calling convention. Shared between x86_32 and x86_64.
+static bool isX86VectorTypeForVectorCall(llvm::Type *argType) {
+
+    if (argType->isFloatTy() || argType->isDoubleTy()) {
+        return true;
+    } else if (argType->isVectorTy()) {
+        unsigned VecSize = g->target->getDataLayout()->getTypeSizeInBits(argType);
+        if (VecSize == 128 || VecSize == 256 || VecSize == 512)
+            return true;
+    }
+    return false;
+}
+
+static bool isEmptyRecord(llvm::Type *type, bool AllowArrays);
+    /// isEmptyField - Return true iff a the field is "empty", that is it
+/// is an unnamed bit-field or an (array of) empty record(s).
+static bool isEmptyField(llvm::Type *type, bool AllowArrays) {
+
+    /* Do not support anonymous*/
+    /*if (FD->isUnnamedBitfield())
+        return true;
+    */
+
+    if (AllowArrays)
+        while (llvm::ArrayType *arrType = llvm::dyn_cast<llvm::ArrayType>(type)) {
+            if (g->target->getDataLayout()->getTypeSizeInBits(arrType->getArrayElementType()))
+                return false;
+            type = arrType->getArrayElementType();
+        }
+
+    if (!type->isStructTy())
+        return false;
+
+    return isEmptyRecord(type, AllowArrays);
+
+}
+
+/// isEmptyRecord - Return true iff a structure contains only empty
+/// fields. Note that a structure with a flexible array member is not
+/// considered empty.
+static bool isEmptyRecord(llvm::Type *type, bool AllowArrays) {
+    llvm::StructType *strctType = llvm::dyn_cast<llvm::StructType>(type);
+    if (!strctType)
+        return false;
+
+    int numElems = strctType->getNumElements();
+    for (int id = 0; id < numElems; id++) {
+        llvm::Type *elemType = strctType->getElementType(id);
+        if (!isEmptyField(elemType, AllowArrays))
+            return false;
+    }
+
+    return true;
+}
+
+/// isHomogeneousAggregate - Return true if a type is an ELFv2 homogeneous
+/// aggregate.  Base is set to the base element type, and Members is set
+/// to the number of base elements.
+bool isHomogeneousAggregate(llvm::Type *type, llvm::Type *&Base, uint64_t &Members) {
+    printf("\n isHomogeneousAggregate ENTER\n");
+    type->dump();
+    if (type->isArrayTy()) {
+        // if (llvm::ConstantArray *cArr = llvm::dyn_cast<llvm::ConstantArray>(type)) {??
+        uint64_t NElements = type->getArrayNumElements();
+
+        if (NElements == 0)
+            return false;
+        if (!isHomogeneousAggregate(type->getArrayElementType(), Base, Members))
+            return false;
+        Members *= NElements;
+    } else if (llvm::StructType *strctType = llvm::dyn_cast<llvm::StructType>(type)) {
+        int numElems = strctType->getNumElements();
+        for (int id = 0; id < numElems; id++) {
+            llvm::Type *elemType = strctType->getElementType(id);
+            while (llvm::ArrayType *arrType = llvm::dyn_cast<llvm::ArrayType>(elemType)) {
+                if (g->target->getDataLayout()->getTypeSizeInBits(arrType->getArrayElementType()) == 0)
+                    return false;
+                elemType = arrType->getArrayElementType();
+            }
+            if (isEmptyRecord(elemType, true))
+                continue;
+
+            uint64_t FldMembers;
+            if (!isHomogeneousAggregate(strctType->getElementType(id), Base, FldMembers))
+                return false;
+
+            Members = Members + FldMembers;
+        }
+
+        if (!Base)
+            return false;
+		Base->dump();
+		printf("\n g->target->getDataLayout()->getTypeSizeInBits(Base) = %d n",
+			(int)g->target->getDataLayout()->getTypeSizeInBits(Base));
+		type->dump();
+		printf("\n g->target->getDataLayout()->getTypeSizeInBits(type) = %d n",
+			(int)g->target->getDataLayout()->getTypeSizeInBits(type));
+        // Ensure there is no padding.
+        if (g->target->getDataLayout()->getTypeSizeInBits(Base) * Members !=
+            g->target->getDataLayout()->getTypeSizeInBits(type))
+            return false;
+
+    } else {
+        Members = 1;
+
+        // Most ABIs only support float, double, and some vector type widths.
+        if (!isX86VectorTypeForVectorCall(type)) {
+            printf("\n !isX86VectorTypeForVectorCall(type) \n");
+            return false;
+        }
+            
+
+        // The base type must be the same for all members.  Types that
+        // agree in both total size and mode (float vs. vector) are
+        // treated as being equivalent here.
+        // Revisit
+        /*const Type *TyPtr = Ty.getTypePtr();*/
+        if (!Base) {
+            printf("\n !!Base(type) \n");
+            Base = type;
+            // If it's a non-power-of-2 vector, its size is already a power-of-2,
+            // so make sure to widen it explicitly.
+            /*if (const VectorType *VT = Base->getAs<VectorType>()) {
+                QualType EltTy = VT->getElementType();
+                unsigned NumElements = getContext().getTypeSize(VT) / getContext().getTypeSize(EltTy);
+                Base = getContext().getVectorType(EltTy, NumElements, VT->getVectorKind()).getTypePtr();
+            }*/
+        }
+
+        if (Base->isVectorTy() != type->isVectorTy() ||
+            g->target->getDataLayout()->getTypeSizeInBits(Base) != g->target->getDataLayout()->getTypeSizeInBits(type))
+            return false;
+    }
+    return Members > 0 && isX86VectorCallAggregateSmallEnough(Members);
+}
+
+
+
+
+static unsigned getTypeStackAlignInBytes(unsigned Align) {
+	// Otherwise, if the alignment is less than or equal to the minimum ABI
+	// alignment, just use the default; the backend will handle this.
+	unsigned MinABIStackAlignInBytes = 4;
+	if (Align <= MinABIStackAlignInBytes)
+		return 0; // Use default alignment.
+
+	// On non-Darwin, the stack type alignment is always 4.
+	return MinABIStackAlignInBytes;
+}
+
+ABIArgInfo getIndirectResult(llvm::Type *type, bool ByVal, CCState &State) {
+    if (!ByVal) {
+        if (State.FreeRegs) {
+            --State.FreeRegs; // Non-byval indirects just use one pointer.
+            //return getNaturalAlignIndirectInReg(Ty);
+			/*return ABIArgInfo::getIndirectInReg(getContext().getTypeAlignInChars(Ty),
+				false, false);*/
+			return ABIArgInfo::getIndirectInReg(4,
+				false, false);
+        }
+        //return getNaturalAlignIndirect(Ty, false);
+		/*return ABIArgInfo::getIndirect(getContext().getTypeAlignInChars(Ty),
+			false, false, nullptr);*/
+        return ABIArgInfo::getIndirect(4, false, false, nullptr);
+    }
+
+    // Compute the byval alignment.
+    unsigned TypeAlign = g->target->getDataLayout()->getABITypeAlignment(type); 
+    // g->target->getDataLayout()->getABITypeAlignment(type).value / 8;
+    unsigned StackAlign = getTypeStackAlignInBytes(TypeAlign);
+    if (StackAlign == 0)
+        return ABIArgInfo::getIndirect(4, /*ByVal=*/true);
+
+    // If the stack alignment is less than the type alignment, realign the
+    // argument.
+    bool Realign = TypeAlign > StackAlign;
+    return ABIArgInfo::getIndirect(StackAlign,
+                                   /*ByVal=*/true, Realign);
+}
+
+// Returns a Homogeneous Vector Aggregate ABIArgInfo, used in X86.
+static ABIArgInfo getDirectX86Hva(llvm::Type *T = nullptr) {
+    auto AI = ABIArgInfo::getDirectInReg(T);
+    /*AI.setInReg(true);
+    AI.setCanBeFlattened(false);*/
+    return AI;
+}
+
+bool isFunctonPtrTy(llvm::Type * type) {
+	llvm::Type *ptr = type;
+	while (ptr->isPointerTy()) {
+		ptr = ptr->getPointerElementType();
+		if (ptr->isFunctionTy())
+			return true;
+	}
+	return false;
+}
+
+
+llvm::Type* isSingleElementStruct(llvm::Type *type) {
+
+	llvm::StructType *strctType = llvm::dyn_cast<llvm::StructType>(type);
+	if (!strctType)
+		return nullptr;
+
+	llvm::Type *found = nullptr;
+
+	int numElems = strctType->getNumElements();
+	for (int id = 0; id < numElems; id++) {
+
+		llvm::Type *elemType = strctType->getElementType(id);
+
+		// Ignore empty fields.
+		if (isEmptyRecord(elemType, true))
+			continue;
+
+
+		// If we already found an element then this isn't a single-element
+		// struct.
+		if (found)
+			return nullptr;
+
+		// Treat single element arrays as the element.
+		while (llvm::ArrayType *AT = llvm::dyn_cast<llvm::ArrayType>(elemType)) {
+			if (AT->getArrayNumElements() != 1)
+				break;
+			elemType = AT->getElementType();
+		}
+
+		// isAggregateTypeForABI
+		if (!(elemType->isVectorTy() || elemType->isStructTy() || elemType->isPointerTy() && isFunctonPtrTy(elemType))) {
+			//Found = FT.getTypePtr(); REVISIT
+			found = elemType->getPointerElementType();
+		}
+		else {
+			found = isSingleElementStruct(elemType);
+			if (!found)
+				return nullptr;
+		}
+		
+	}
+
+	// We don't consider a struct a single-element struct if it has
+  // padding beyond the element type.
+	if (found && (g->target->getDataLayout()->getTypeSizeInBits(found) != g->target->getDataLayout()->getTypeSizeInBits(type)))
+		return nullptr;
+
+	return found;
+
+}
+bool classify(llvm::Type *type) {
+
+	bool isFloat = false;
+
+	llvm::Type *relType = isSingleElementStruct(type);
+	if (!relType) {
+		relType = type;
+		// T = Ty.getTypePtr(); REVISIT
+	}
+
+	if (relType->isDoubleTy() || relType->isFloatTy())
+		isFloat = true;
+
+	return isFloat;
+}
+bool updateFreeRegs(llvm::Type *type, CCState &State) {
+
+	if (classify(type))
+		return false;
+
+	unsigned Size = g->target->getDataLayout()->getTypeSizeInBits(type);
+	unsigned SizeInRegs = (Size + 31) / 32;
+
+	if (SizeInRegs == 0)
+		return false;
+
+	if (SizeInRegs > State.FreeRegs) {
+		State.FreeRegs = 0;
+		return false;
+	}
+
+	State.FreeRegs -= SizeInRegs;
+	return true;
+}
+
+bool shouldAggregateUseDirect(llvm::Type *type, CCState &State,
+	bool &InReg,
+	bool &NeedsPadding) {
+	// On Windows, aggregates other than HFAs are never passed in registers, and
+	// they do not consume register slots. Homogenous floating-point aggregates
+	// (HFAs) have already been dealt with at this point.
+	// isAggregateTypeForABI
+	if (type->isVectorTy() || type->isStructTy() || (type->isPointerTy() && isFunctonPtrTy(type))) {
+		return false;
+	}
+
+	NeedsPadding = false;
+	InReg = true;
+
+	if (!updateFreeRegs(type, State))
+		return false;
+
+	if (g->target->getDataLayout()->getTypeSizeInBits(type) <= 32 && State.FreeRegs)
+		NeedsPadding = true;
+	
+	return false;
+
+}
+
+
+bool addFieldSizes(llvm::StructType *strctType, uint64_t &size) {
+
+	int numElems = strctType->getNumElements();
+	for (int id = 0; id < numElems; id++) {
+
+		llvm::Type *elemType = strctType->getElementType(id);
+		// Scalar arguments on the stack get 4 byte alignment on x86. If the
+		// argument is smaller than 32-bits, expanding the struct will create
+		// alignment padding.
+		uint64_t eSize = g->target->getDataLayout()->getTypeSizeInBits(elemType);
+		if (elemType->isArrayTy() || elemType->isVectorTy() || elemType->isStructTy()) {			
+			if (!(eSize == 32 || eSize == 64))
+				return false;
+
+		}
+
+		size += eSize;			
+	}
+
+	return true;
+
+}
+
+/// Test whether an argument type which is to be passed indirectly (on the
+/// stack) would have the equivalent layout if it was expanded into separate
+/// arguments. If so, we prefer to do the latter to avoid inhibiting
+/// optimizations.
+bool canExpandIndirectArgument(llvm::Type *type)  {
+	// We can only expand structure types.
+	llvm::StructType *strType = llvm::dyn_cast<llvm::StructType>(type);
+	if (!strType)
+		return false;
+
+	uint64_t size = 0;
+	if (!addFieldSizes(strType, size))
+		return false;
+
+	return size == g->target->getDataLayout()->getTypeSizeInBits(type);
+
+}
+
+bool shouldPrimitiveUseInReg(llvm::Type *type, CCState &State) {
+	if (!updateFreeRegs(type, State))
+		return false;
+
+	if (g->target->getDataLayout()->getTypeSizeInBits(type) > 32) {
+		return false;
+	}
+
+	return (type->isIntegerTy() || type->isPointerTy());
+
+}
+
+/*ABIArgInfo*/ ABIArgInfo classifyArgumentType(llvm::Type *type, CCState &State) { 
+    
+    // Regcall uses the concept of a homogenous vector aggregate, similar
+    // to other targets.
+    printf("\n classifyArgumentType \n");
+    type->dump();
+    llvm::Type *Base = nullptr;
+    uint64_t NumElts = 0;
+    if ( isHomogeneousAggregate(type, Base, NumElts)) {
+        if (State.FreeSSERegs >= NumElts) {
+            State.FreeSSERegs -= NumElts;
+
+            // Vectorcall passes HVAs directly and does not flatten them, but regcall
+            // does.
+            printf("\n getDirectX86Hva 1708 \n");
+            return getDirectX86Hva();
+
+        }
+        printf("\n getIndirectResult 1712 \n");
+        return getIndirectResult(type, /*ByVal=*/false, State);
+    }
+
+	// isAggregateTypeForABI
+	if (type->isArrayTy() || type->isStructTy() || type->isPointerTy() && isFunctonPtrTy(type)) {
+
+		// Ignore empty structs/unions on non-Windows.
+        if (isEmptyRecord(type, true)) {
+            printf("\n getIgnore 1721 \n");
+            return ABIArgInfo::getIgnore();
+        }
+			
+
+		bool NeedsPadding = false;
+		bool InReg;
+		llvm::IntegerType *Int32 = llvm::Type::getInt32Ty(*g->ctx);
+		if (shouldAggregateUseDirect(type, State, InReg, NeedsPadding)) {
+			unsigned SizeInRegs = (g->target->getDataLayout()->getTypeSizeInBits(type) + 31) / 32;
+			llvm::SmallVector<llvm::Type*, 3> Elements(SizeInRegs, Int32);
+            llvm::Type *Result = llvm::StructType::get(*g->ctx, Elements);
+            if (InReg) {
+                printf("\n getDirectInReg 1734 \n");
+                return ABIArgInfo::getDirectInReg(Result);
+            }
+				
+			else {
+                printf("\n getDirect 1739 \n");
+                return ABIArgInfo::getDirect(Result);
+            }
+				
+		}
+
+		llvm::IntegerType *PaddingType = NeedsPadding ? Int32 : nullptr;
+
+		// Pass over-aligned aggregates on Windows indirectly. This behavior was
+		// added in MSVC 2015.
+		/*if (IsWin32StructABI && TI.AlignIsRequired && TI.Align > 32)
+			return getIndirectResult(Ty, false, State);*/ //REVISIT
+
+    // Expand small (<= 128-bit) record types when we know that the stack layout
+	// of those arguments will match the struct. This is important because the
+	// LLVM backend isn't smart enough to remove byval, which inhibits many
+	// optimizations.
+	// Don't do this for the MCU if there are still free integer registers
+	// (see X86_64 ABI for full explanation).
+		printf("\n g->target->getDataLayout()->getTypeSizeInBits(type) = %d \n", (int)g->target->getDataLayout()->getTypeSizeInBits(type));
+        if (g->target->getDataLayout()->getTypeSizeInBits(type) <= 4 * 32 &&
+            canExpandIndirectArgument(type)) {
+            printf("\n getExpandWithPadding 1760 \n");
+            return ABIArgInfo::getExpandWithPadding(true, PaddingType);
+        }
+        printf("\n getIndirectResult 1763 \n");
+		return getIndirectResult(type, true, State);
+
+	}
+
+	if (llvm::VectorType *vt = llvm::dyn_cast<llvm::VectorType>(type)) {
+		if (g->target->getDataLayout()->getTypeSizeInBits(vt) <= 512 && State.FreeSSERegs > 0) {
+			--State.FreeSSERegs;
+            printf("\n getDirectInReg 1771 \n");
+			return ABIArgInfo::getDirectInReg();
+		}
+        printf("\n getIndirectResult 1774 \n");
+		return getIndirectResult(vt, /*ByVal=*/false, State);
+
+	}
+
+	bool InReg = shouldPrimitiveUseInReg(type, State);
+
+    // Already promoted
+    /*if (type->isIntegerTy() && (g->target->getDataLayout()->getTypeSizeInBits(type) < 32)) {
+        if (InReg) {
+            printf("\n getExtendInReg 1782 \n");
+            return ABIArgInfo::getExtendInReg(*type);
+        }
+        return ABIArgInfo::getExtend(*type);
+    }*/
+	
+
+	if (InReg) {
+        printf("\n getDirectInReg 1788 \n");
+		return ABIArgInfo::getDirectInReg();
+	}
+    printf("\n getDirect 1791 \n");
+	return ABIArgInfo::getDirect();    
+
+}
+
+
+
+static void runVectorCallFirstPass(llvm::FunctionType *fType, CCState &state, std::vector<ABIArgInfo> &argInfo) {
+    // Vectorcall x86 works subtly different than in x64, so the format is
+    // a bit different than the x64 version.  First, all vector types (not HVAs)
+    // are assigned, with the first 6 ending up in the [XYZ]MM0-5 registers.
+    // This differs from the x64 implementation, where the first 6 by INDEX get
+    // registers.
+    // In the second pass over the arguments, HVAs are passed in the remaining
+    // vector registers if possible, or indirectly by address. The address will be
+    // passed in ECX/EDX if available. Any other arguments are passed according to
+    // the usual fastcall rules.
+    //llvm::Function::arg_iterator argIter = func->arg_begin();
+    //llvm::FunctionType *fType = func->getFunctionType();
+    printf("\n ENTER runVectorCallFirstPass \n");
+    for (int paramNum = 0; paramNum < fType->getNumParams(); paramNum++) {
+        llvm::Type *Base = nullptr;
+        uint64_t NumElts = 0;
+        
+        llvm::Type *argType = fType->getParamType(paramNum);
+        printf("\n ENTER arg ParamNO = %d", (int)paramNum);
+        argType->dump();
+        if ((argType->isVectorTy() || argType->isIntegerTy() || argType->isFloatTy() || argType->isDoubleTy()) &&
+            isHomogeneousAggregate(argType, Base, NumElts)) {
+            if (state.FreeSSERegs >= NumElts) {
+                state.FreeSSERegs -= NumElts;
+                state.IsPreassigned.set(paramNum);
+                argInfo[paramNum] = ABIArgInfo::getDirectInReg();
+            }
+        }
+    }
+}
+
+void Target::computeInfo(llvm::FunctionType *fType, std::vector<ABIArgInfo> &argInfo) {
+    printf("\n ENTER Target::computeInfo \n");
+    unsigned int argNum = fType->getNumParams();
+    CCState State(argNum);
+    State.FreeRegs = 2;
+    State.FreeSSERegs = 6;
+
+    runVectorCallFirstPass(fType, State, argInfo);
+
+    bool UsedInAlloca = false;
+
+    for (int paramNum = 0; paramNum < fType->getNumParams(); paramNum++) {
+    //llvm::Function::arg_iterator argIter = func->arg_begin();
+    //for (; argIter != func->arg_end(); ++argIter) {
+        // Skip arguments that have already been assigned.
+        if (State.IsPreassigned.test(paramNum))
+            continue;
+
+        argInfo[paramNum] = classifyArgumentType(fType->getParamType(paramNum), State);
+        //UsedInAlloca |= (Args[I].info.getKind() == ABIArgInfo::InAlloca);
+    }
+}
+
+void Target::setInRegForFunction(llvm::Function *function, std::vector<ABIArgInfo> &argInfo) {
+
+    llvm::FunctionType *fType = function->getFunctionType();
+    printf("\n setInRegForFunction \n");
+    fType->dump();
+
+    for (int paramNum = 0; paramNum < fType->getNumParams(); paramNum++) {
+        printf("\n Adding Attr paramNum = %d, nArgs = %d \n", paramNum, fType->getNumParams());
+        argInfo[paramNum].print();
+        if (argInfo[paramNum].getInReg()) {
+
+            function->addParamAttr(paramNum, llvm::Attribute::InReg);
+        }
+    }
+
+}
+
 void Target::markFuncWithCallingConv(llvm::Function *func) {
     assert(g->calling_conv != CallingConv::uninitialized);
     if (g->calling_conv == CallingConv::x86_vectorcall) {
         func->setCallingConv(llvm::CallingConv::X86_VectorCall);
+        
+
         // Add x86 vectorcall changes as a separate commit.
         /*
         // We have to jump through some hoops for x86.
@@ -1452,6 +2015,8 @@ Globals::Globals() {
     // Set calling convention to 'uninitialized'.
     // This needs to be set once target OS is decided.
     calling_conv = CallingConv::uninitialized;
+
+    abiInfo = ABIInfo::uninitialized;
 }
 
 ///////////////////////////////////////////////////////////////////////////

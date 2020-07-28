@@ -426,12 +426,18 @@ static int ParsingPhaseName(char *stage, ArgErrors &errorHandler) {
     }
 }
 
-static void setCallingConv(bool disableVectorCall, Arch arch) {
+static void setCallingConv(bool disableVectorCall, Arch arch) {    
     // Restrict vectorcall to just x86_64.
-    if ((g->target_os == TargetOS::windows) && !disableVectorCall && arch != Arch::x86) {
+    if ((g->target_os == TargetOS::windows) && !disableVectorCall) {
         g->calling_conv = CallingConv::x86_vectorcall;
+        if (arch == Arch::x86) {
+            g->abiInfo = ABIInfo::X86_32ABI;
+        } else {
+            g->abiInfo = ABIInfo::X86_64ABI;
+        }
     } else {
         g->calling_conv = CallingConv::defaultcall;
+        g->abiInfo = ABIInfo::defaultABI;
     }
 }
 

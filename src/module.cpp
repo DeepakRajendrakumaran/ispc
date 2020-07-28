@@ -672,6 +672,30 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
             functionName += g->target->GetISAString();
         }
     }
+    //std::vector<ABIArgInfo> argInfo(llvmFunctionType->getNumParams(), ABIArgInfo());
+    std::vector<ABIArgInfo> argInfo(llvmFunctionType->getNumParams());
+    
+    printf("\n DEEPAK  llvmFunctionType->getNumParams() = %d, size = %d \n",    llvmFunctionType->getNumParams() ,argInfo.size());
+    llvmFunctionType->dump();
+
+    int i = 0;
+    for (std::vector<ABIArgInfo>::iterator it = argInfo.begin(); it != argInfo.end(); it++) {
+        printf("\n DEEPAK BEFORE argKIND %d = %d \n", i, it->getKind());
+        argInfo[i].print();
+
+        i++;
+    }
+    
+
+    g->target->computeInfo(llvmFunctionType, argInfo);
+    
+    i = 0;
+    for (std::vector<ABIArgInfo>::iterator it = argInfo.begin(); it != argInfo.end(); it++) {
+        printf("\n DEEPAK AFTER argKIND %d = %d \n", i, it->getKind());
+        llvmFunctionType->getParamType(i)->dump();
+        argInfo[i].print();
+        i++;
+    }
     llvm::Function *function = llvm::Function::Create(llvmFunctionType, linkage, functionName.c_str(), module);
 
     if (g->target_os == TargetOS::windows) {
@@ -714,6 +738,7 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
     if (((isVectorCall) && (storageClass == SC_EXTERN_C)) || (storageClass != SC_EXTERN_C)) {
         g->target->markFuncWithCallingConv(function);
     }
+    g->target->setInRegForFunction(function, argInfo);
 
     g->target->markFuncWithTargetAttr(function);
 
@@ -741,7 +766,6 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
         const std::string &argName = functionType->GetParameterName(i);
         Expr *defaultValue = functionType->GetParameterDefault(i);
         const SourcePos &argPos = functionType->GetParameterSourcePos(i);
-
         // If the function is exported, make sure that the parameter
         // doesn't have any funky stuff going on in it.
         // JCB nomosoa - Varying is now a-ok.
@@ -2171,6 +2195,9 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
     // type for the dispatch function in case of pointers to varyings
     llvm::FunctionType *ftype = lGetVaryingDispatchType(funcs);
 
+    std::vector<ABIArgInfo> argInfo(ftype->getNumParams());
+    g->target->computeInfo(ftype, argInfo);
+
     // Now we insert type-punned declarations for dispatched functions.
     // This is needed when compiling modules for a set of architectures
     // with different vector lengths. Due to restrictions, the return
@@ -2180,10 +2207,14 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
 
     for (int i = 0; i < Target::NUM_ISAS; ++i) {
         if (funcs.func[i]) {
-
+            printf("\n DISPATCH \n");
+            ftype->dump();
+            
             targetFuncs[i] =
                 llvm::Function::Create(ftype, llvm::GlobalValue::ExternalLinkage, funcs.func[i]->getName(), module);
+            targetFuncs[i]->dump();
             g->target->markFuncWithCallingConv(targetFuncs[i]);
+            g->target->setInRegForFunction(targetFuncs[i], argInfo);
         } else
             targetFuncs[i] = NULL;
     }
@@ -2194,6 +2225,9 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
     llvm::Function *dispatchFunc =
         llvm::Function::Create(ftype, llvm::GlobalValue::ExternalLinkage, name.c_str(), module);
     g->target->markFuncWithCallingConv(dispatchFunc);
+    printf("\n dispatchFunc \n");
+    dispatchFunc->dump();
+    g->target->setInRegForFunction(dispatchFunc, argInfo);
     llvm::BasicBlock *bblock = llvm::BasicBlock::Create(*g->ctx, "entry", dispatchFunc);
 
     // Start by calling out to the function that determines the system's

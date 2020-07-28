@@ -63,6 +63,8 @@
 #include <string>
 #include <vector>
 
+#include "llvm/IR/DerivedTypes.h"
+
 /** @def ISPC_MAX_NVEC maximum vector size of any of the compliation
     targets.
  */
@@ -146,6 +148,469 @@ struct SourcePos {
     extents. */
 SourcePos Union(const SourcePos &p1, const SourcePos &p2);
 
+
+/// ABIArgInfo - Helper class to encapsulate information about how a
+/// specific C type should be passed to or returned from a function.
+class ABIArgInfo {
+public:
+	enum Kind : uint8_t {
+		/// Direct - Pass the argument directly using the normal converted LLVM
+		/// type, or by coercing to another specified type stored in
+		/// 'CoerceToType').  If an offset is specified (in UIntData), then the
+		/// argument passed is offset by some number of bytes in the memory
+		/// representation. A dummy argument is emitted before the real argument
+		/// if the specified type stored in "PaddingType" is not zero.
+		Direct,
+
+		/// Extend - Valid only for integer argument types. Same as 'direct'
+		/// but also emit a zero/sign extension attribute.
+		Extend,
+
+		/// Indirect - Pass the argument indirectly via a hidden pointer
+		/// with the specified alignment (0 indicates default alignment).
+		Indirect,
+
+		/// Ignore - Ignore the argument (treat as void). Useful for void and
+		/// empty structs.
+		Ignore,
+
+		/// Expand - Only valid for aggregate argument types. The structure should
+		/// be expanded into consecutive arguments for its constituent fields.
+		/// Currently expand is only allowed on structures whose fields
+		/// are all scalar types or are themselves expandable types.
+		Expand,
+
+		/// CoerceAndExpand - Only valid for aggregate argument types. The
+		/// structure should be expanded into consecutive arguments corresponding
+		/// to the non-array elements of the type stored in CoerceToType.
+		/// Array elements in the type are assumed to be padding and skipped.
+		CoerceAndExpand,
+
+		/// InAlloca - Pass the argument directly using the LLVM inalloca attribute.
+		/// This is similar to indirect with byval, except it only applies to
+		/// arguments stored in memory and forbids any implicit copies.  When
+		/// applied to a return type, it means the value is returned indirectly via
+		/// an implicit sret parameter stored in the argument struct.
+		InAlloca,
+		KindFirst = Direct,
+		KindLast = InAlloca
+	};
+
+private:
+	llvm::Type *TypeData; // canHaveCoerceToType()
+	union {
+		llvm::Type *PaddingType; // canHavePaddingType()
+		llvm::Type *UnpaddedCoerceAndExpandType; // isCoerceAndExpand()
+	};
+	union {
+		unsigned DirectOffset;     // isDirect() || isExtend()
+		unsigned IndirectAlign;    // isIndirect()
+		unsigned AllocaFieldIndex; // isInAlloca()
+	};
+	Kind TheKind;
+	bool PaddingInReg : 1;
+	bool InAllocaSRet : 1;    // isInAlloca()
+	bool InAllocaIndirect : 1;// isInAlloca()
+	bool IndirectByVal : 1;   // isIndirect()
+	bool IndirectRealign : 1; // isIndirect()
+	bool SRetAfterThis : 1;   // isIndirect()
+	bool InReg : 1;           // isDirect() || isExtend() || isIndirect()
+	bool CanBeFlattened : 1;   // isDirect()
+	bool SignExt : 1;         // isExtend()
+
+	bool canHavePaddingType() const {
+		return isDirect() || isExtend() || isIndirect() || isExpand();
+	}
+	void setPaddingType(llvm::Type *T) {
+		//assert(canHavePaddingType());
+		PaddingType = T;
+	}
+
+	void setUnpaddedCoerceToType(llvm::Type *T) {
+		//assert(isCoerceAndExpand());
+		UnpaddedCoerceAndExpandType = T;
+	}
+
+public:
+	ABIArgInfo(Kind K = Direct)
+		: TypeData(nullptr), PaddingType(nullptr), DirectOffset(0), TheKind(K),
+		PaddingInReg(false), InAllocaSRet(false), InAllocaIndirect(false),
+		IndirectByVal(false), IndirectRealign(false), SRetAfterThis(false),
+		InReg(false), CanBeFlattened(false), SignExt(false) {}
+
+	static ABIArgInfo getDirect(llvm::Type *T = nullptr, unsigned Offset = 0,
+		llvm::Type *Padding = nullptr,
+		bool CanBeFlattened = true) {
+		auto AI = ABIArgInfo(Direct);
+		AI.setCoerceToType(T);
+		AI.setPaddingType(Padding);
+		AI.setDirectOffset(Offset);
+		AI.setCanBeFlattened(CanBeFlattened);
+		return AI;
+	}
+	static ABIArgInfo getDirectInReg(llvm::Type *T = nullptr) {
+		auto AI = getDirect(T);
+		AI.setInReg(true);
+		return AI;
+	}
+
+	/*static ABIArgInfo getSignExtend(llvm::Type Ty, llvm::Type *T = nullptr) {
+		//assert(Ty->isIntegralOrEnumerationType() && "Unexpected QualType");
+		auto AI = ABIArgInfo(Extend);
+		AI.setCoerceToType(T);
+		AI.setPaddingType(nullptr);
+		AI.setDirectOffset(0);
+		AI.setSignExt(true);
+		return AI;
+	}
+
+	static ABIArgInfo getZeroExtend(llvm::Type Ty, llvm::Type *T = nullptr) {
+		//assert(Ty->isIntegralOrEnumerationType() && "Unexpected QualType");
+		auto AI = ABIArgInfo(Extend);
+		AI.setCoerceToType(T);
+		AI.setPaddingType(nullptr);
+		AI.setDirectOffset(0);
+		AI.setSignExt(false);
+		return AI;
+	}
+
+	// ABIArgInfo will record the argument as being extended based on the sign
+	// of its type.
+	static ABIArgInfo getExtend(llvm::Type Ty, llvm::Type *T = nullptr) {
+		//assert(Ty->isIntegralOrEnumerationType() && "Unexpected QualType");
+		//if (Ty->hasSignedIntegerRepresentation())
+		//	return getSignExtend(Ty, T);
+		return getZeroExtend(Ty, T);
+	}
+
+	static ABIArgInfo getExtendInReg(llvm::Type Ty, llvm::Type *T = nullptr) {
+		auto AI = getExtend(Ty, T);
+		AI.setInReg(true);
+		return AI;
+	}*/
+	/*
+	static ABIArgInfo getSignExtend(QualType Ty, llvm::Type *T = nullptr) {
+		assert(Ty->isIntegralOrEnumerationType() && "Unexpected QualType");
+		auto AI = ABIArgInfo(Extend);
+		AI.setCoerceToType(T);
+		AI.setPaddingType(nullptr);
+		AI.setDirectOffset(0);
+		AI.setSignExt(true);
+		return AI;
+	}
+
+	static ABIArgInfo getZeroExtend(QualType Ty, llvm::Type *T = nullptr) {
+		assert(Ty->isIntegralOrEnumerationType() && "Unexpected QualType");
+		auto AI = ABIArgInfo(Extend);
+		AI.setCoerceToType(T);
+		AI.setPaddingType(nullptr);
+		AI.setDirectOffset(0);
+		AI.setSignExt(false);
+		return AI;
+	}
+
+	// ABIArgInfo will record the argument as being extended based on the sign
+	// of its type.
+	static ABIArgInfo getExtend(QualType Ty, llvm::Type *T = nullptr) {
+		assert(Ty->isIntegralOrEnumerationType() && "Unexpected QualType");
+		if (Ty->hasSignedIntegerRepresentation())
+			return getSignExtend(Ty, T);
+		return getZeroExtend(Ty, T);
+	}
+
+	static ABIArgInfo getExtendInReg(QualType Ty, llvm::Type *T = nullptr) {
+		auto AI = getExtend(Ty, T);
+		AI.setInReg(true);
+		return AI;
+	}*/
+	static ABIArgInfo getIgnore() {
+		return ABIArgInfo(Ignore);
+	}
+	static ABIArgInfo getIndirect(unsigned int Alignment, bool ByVal = true,
+		bool Realign = false,
+		llvm::Type *Padding = nullptr) {
+		auto AI = ABIArgInfo(Indirect);
+		//AI.setIndirectAlign(Alignment);
+		AI.setIndirectByVal(ByVal);
+		AI.setIndirectRealign(Realign);
+		AI.setSRetAfterThis(false);
+		AI.setPaddingType(Padding);
+		return AI;
+	}
+	static ABIArgInfo getIndirectInReg(unsigned int Alignment, bool ByVal = true,
+		bool Realign = false) {
+		auto AI = getIndirect(Alignment, ByVal, Realign);
+		AI.setInReg(true);
+		return AI;
+	}
+	/*static ABIArgInfo getIndirect(CharUnits Alignment, bool ByVal = true,
+		bool Realign = false,
+		llvm::Type *Padding = nullptr) {
+		auto AI = ABIArgInfo(Indirect);
+		AI.setIndirectAlign(Alignment);
+		AI.setIndirectByVal(ByVal);
+		AI.setIndirectRealign(Realign);
+		AI.setSRetAfterThis(false);
+		AI.setPaddingType(Padding);
+		return AI;
+	}
+	static ABIArgInfo getIndirectInReg(CharUnits Alignment, bool ByVal = true,
+		bool Realign = false) {
+		auto AI = getIndirect(Alignment, ByVal, Realign);
+		AI.setInReg(true);
+		return AI;
+	}*/
+	static ABIArgInfo getInAlloca(unsigned FieldIndex, bool Indirect = false) {
+		auto AI = ABIArgInfo(InAlloca);
+		AI.setInAllocaFieldIndex(FieldIndex);
+		AI.setInAllocaIndirect(Indirect);
+		return AI;
+	}
+	static ABIArgInfo getExpand() {
+		auto AI = ABIArgInfo(Expand);
+		AI.setPaddingType(nullptr);
+		return AI;
+	}
+	static ABIArgInfo getExpandWithPadding(bool PaddingInReg,
+		llvm::Type *Padding) {
+		auto AI = getExpand();
+		AI.setPaddingInReg(PaddingInReg);
+		AI.setPaddingType(Padding);
+		return AI;
+	}
+
+	/// \param unpaddedCoerceToType The coerce-to type with padding elements
+	///   removed, canonicalized to a single element if it would otherwise
+	///   have exactly one element.
+	/*static ABIArgInfo getCoerceAndExpand(llvm::StructType *coerceToType,
+		llvm::Type *unpaddedCoerceToType) {
+		auto AI = ABIArgInfo(CoerceAndExpand);
+		AI.setCoerceToType(coerceToType);
+		AI.setUnpaddedCoerceToType(unpaddedCoerceToType);
+		return AI;
+	}
+
+	static bool isPaddingForCoerceAndExpand(llvm::Type *eltType) {
+		if (eltType->isArrayTy()) {
+			//assert(eltType->getArrayElementType()->isIntegerTy(8));
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+    */
+	Kind getKind() const { return TheKind; }
+	bool isDirect() const { return TheKind == Direct; }
+	bool isInAlloca() const { return TheKind == InAlloca; }
+	bool isExtend() const { return TheKind == Extend; }
+	bool isIgnore() const { return TheKind == Ignore; }
+	bool isIndirect() const { return TheKind == Indirect; }
+	bool isExpand() const { return TheKind == Expand; }
+	bool isCoerceAndExpand() const { return TheKind == CoerceAndExpand; }
+
+	bool canHaveCoerceToType() const {
+		return isDirect() || isExtend() || isCoerceAndExpand();
+	}
+
+	// Direct/Extend accessors
+	unsigned getDirectOffset() const {
+		//assert((isDirect() || isExtend()) && "Not a direct or extend kind");
+		return DirectOffset;
+	}
+	void setDirectOffset(unsigned Offset) {
+		//assert((isDirect() || isExtend()) && "Not a direct or extend kind");
+		DirectOffset = Offset;
+	}
+
+	bool isSignExt() const {
+		//assert(isExtend() && "Invalid kind!");
+		return SignExt;
+	}
+	void setSignExt(bool SExt) {
+		//assert(isExtend() && "Invalid kind!");
+		SignExt = SExt;
+	}
+
+	llvm::Type *getPaddingType() const {
+		return (canHavePaddingType() ? PaddingType : nullptr);
+	}
+
+	bool getPaddingInReg() const {
+		return PaddingInReg;
+	}
+	void setPaddingInReg(bool PIR) {
+		PaddingInReg = PIR;
+	}
+
+	llvm::Type *getCoerceToType() const {
+		//assert(canHaveCoerceToType() && "Invalid kind!");
+		return TypeData;
+	}
+
+	void setCoerceToType(llvm::Type *T) {
+		//assert(canHaveCoerceToType() && "Invalid kind!");
+		TypeData = T;
+	}
+
+	/*llvm::StructType *getCoerceAndExpandType() const {
+		//assert(isCoerceAndExpand());
+		return llvm::cast<llvm::StructType>(TypeData);
+	}*/
+
+	llvm::Type *getUnpaddedCoerceAndExpandType() const {
+		//assert(isCoerceAndExpand());
+		return UnpaddedCoerceAndExpandType;
+	}
+
+	llvm::ArrayRef<llvm::Type *>getCoerceAndExpandTypeSequence() const {
+		//assert(isCoerceAndExpand());
+		if (auto structTy =
+			llvm::dyn_cast<llvm::StructType>(UnpaddedCoerceAndExpandType)) {
+			return structTy->elements();
+		}
+		else {
+			return llvm::makeArrayRef(&UnpaddedCoerceAndExpandType, 1);
+		}
+	}
+
+	bool getInReg() const {
+		//assert((isDirect() || isExtend() || isIndirect()) && "Invalid kind!");
+		return InReg;
+	}
+
+	void setInReg(bool IR) {
+		//assert((isDirect() || isExtend() || isIndirect()) && "Invalid kind!");
+		InReg = IR;
+	}
+
+	// Indirect accessors
+	/*CharUnits getIndirectAlign() const {
+		//assert(isIndirect() && "Invalid kind!");
+		return CharUnits::fromQuantity(IndirectAlign);
+	}
+	void setIndirectAlign(CharUnits IA) {
+		//assert(isIndirect() && "Invalid kind!");
+		IndirectAlign = IA.getQuantity();
+	}*/
+
+	bool getIndirectByVal() const {
+		//assert(isIndirect() && "Invalid kind!");
+		return IndirectByVal;
+	}
+	void setIndirectByVal(bool IBV) {
+		//assert(isIndirect() && "Invalid kind!");
+		IndirectByVal = IBV;
+	}
+
+	bool getIndirectRealign() const {
+		//assert(isIndirect() && "Invalid kind!");
+		return IndirectRealign;
+	}
+	void setIndirectRealign(bool IR) {
+		//assert(isIndirect() && "Invalid kind!");
+		IndirectRealign = IR;
+	}
+
+	bool isSRetAfterThis() const {
+		//assert(isIndirect() && "Invalid kind!");
+		return SRetAfterThis;
+	}
+	void setSRetAfterThis(bool AfterThis) {
+		//assert(isIndirect() && "Invalid kind!");
+		SRetAfterThis = AfterThis;
+	}
+
+	unsigned getInAllocaFieldIndex() const {
+		//assert(isInAlloca() && "Invalid kind!");
+		return AllocaFieldIndex;
+	}
+	void setInAllocaFieldIndex(unsigned FieldIndex) {
+		//assert(isInAlloca() && "Invalid kind!");
+		AllocaFieldIndex = FieldIndex;
+	}
+
+	unsigned getInAllocaIndirect() const {
+		assert(isInAlloca() && "Invalid kind!");
+		return InAllocaIndirect;
+	}
+	void setInAllocaIndirect(bool Indirect) {
+		//assert(isInAlloca() && "Invalid kind!");
+		InAllocaIndirect = Indirect;
+	}
+
+	/// Return true if this field of an inalloca struct should be returned
+	/// to implement a struct return calling convention.
+	bool getInAllocaSRet() const {
+		//assert(isInAlloca() && "Invalid kind!");
+		return InAllocaSRet;
+	}
+
+	void setInAllocaSRet(bool SRet) {
+		//assert(isInAlloca() && "Invalid kind!");
+		InAllocaSRet = SRet;
+	}
+
+	bool getCanBeFlattened() const {
+		//assert(isDirect() && "Invalid kind!");
+		return CanBeFlattened;
+	}
+
+	void setCanBeFlattened(bool Flatten) {
+		//assert(isDirect() && "Invalid kind!");
+		CanBeFlattened = Flatten;
+	}
+
+    void print() {
+        switch (TheKind) {
+        case ABIArgInfo::Kind::Direct:
+            printf("\n Direct \n");
+            if (getInReg()) {
+                // llvmFunctionType->setpara
+                // argIter->addAttr(llvm::Attribute::InReg);
+                printf("\n Inreg \n");
+            } else {
+                printf("\n No Inreg \n");
+            }
+            break;
+        case ABIArgInfo::Kind::Indirect:
+            printf("\n Indirect \n");
+            if (getInReg()) {
+                printf("\n Inreg \n");
+            } else {
+                printf("\n No Inreg \n");
+            }
+            break;
+        case ABIArgInfo::Kind::Expand:
+            printf("\n Expand \n");
+            if (getInReg()) {
+                printf("\n Inreg \n");
+            } else {
+                printf("\n No Inreg \n");
+            }
+            break;
+        case ABIArgInfo::Kind::InAlloca:
+            printf("\n InAlloca \n");
+            if (getInReg()) {
+                printf("\n Inreg \n");
+            }
+            break;
+        case ABIArgInfo::Kind::Ignore:
+            printf("\n Ignore \n");
+            if (getInReg()) {
+                printf("\n Inreg \n");
+            } else {
+                printf("\n No Inreg \n");
+            }
+            break;
+        default:
+            printf("\n CRASHHHHH 1 \n");
+            assert(0);
+        }
+
+    }
+};
+
 /** @brief Structure that defines a compilation target
 
     This structure defines a compilation target for the ispc compiler.
@@ -219,6 +684,11 @@ class Target {
 
     /** Set LLVM function with Calling Convention. */
     void markFuncWithCallingConv(llvm::Function *func);
+
+    void setInRegForFunction(llvm::Function *function, std::vector<ABIArgInfo> &argInfo);
+
+    //void computeInfo(llvm::Function *func, std::vector<ABIArgInfo> &argInfo);
+    void computeInfo(llvm::FunctionType *fType, std::vector<ABIArgInfo> &argInfo);
 
     const llvm::Target *getTarget() const { return m_target; }
 
@@ -513,6 +983,8 @@ struct Globals {
 
     /** Function Calling Convention */
     CallingConv calling_conv;
+
+    ABIInfo abiInfo;
 
     /** There are a number of math libraries that can be used for
         transcendentals and the like during program compilation. */
