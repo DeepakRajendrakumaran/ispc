@@ -438,11 +438,19 @@ static int ParsingPhaseName(char *stage, ArgErrors &errorHandler) {
 
 enum class VectorCallStatus { none, enabled, disabled };
 
+static void setABI(Arch arch) {
+    g->abiInfo = ABIInfo::defaultABI;
+    if (arch == Arch::x86) {
+        g->abiInfo = ABIInfo::X86_32ABI;
+    } else if (arch == Arch::x86_64) {
+        g->abiInfo = ABIInfo::X86_64ABI;
+    }
+}
 static void setCallingConv(VectorCallStatus vectorCall, Arch arch) {
     // Restrict vectorcall to just x86_64 - vectorcall for x86 not supported yet.
     if (g->target_os == TargetOS::windows && vectorCall == VectorCallStatus::enabled &&
         // Arch is not properly set yet, we assume none is x86_64.
-        (arch == Arch::x86_64 || arch == Arch::none)) {
+        (arch == Arch::x86_64 || arch == Arch::x86 || arch == Arch::none)) {
         g->calling_conv = CallingConv::x86_vectorcall;
     } else {
         g->calling_conv = CallingConv::defaultcall;
@@ -1015,6 +1023,8 @@ int main(int Argc, char *Argv[]) {
 
     // This needs to happen after the TargetOS is decided.
     setCallingConv(vectorCall, arch);
+
+    setABI(arch);
 
     return Module::CompileAndOutput(file, arch, cpu, targets, flags, ot, outFileName, headerFileName, depsFileName,
                                     depsTargetName, hostStubFileName, devStubFileName);

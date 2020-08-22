@@ -40,6 +40,8 @@
 #include <string>
 #include <vector>
 
+enum class ABIInfo { uninitialized, defaultABI, X86_32ABI, X86_64ABI };
+
 enum class CallingConv { uninitialized, defaultcall, x86_vectorcall };
 
 enum class TargetOS { windows, linux, custom_linux, freebsd, macos, android, ios, ps4, web, error };
