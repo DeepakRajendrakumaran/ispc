@@ -51,6 +51,10 @@ class Function {
     /** Generate LLVM IR for the function into the current module. */
     void GenerateIR();
 
+    void handleFuncParamsDefaultABI(FunctionEmitContext *ctx, llvm::Function *function, const FunctionType *type);
+    void handleFuncParamsX86_32ABI(FunctionEmitContext *ctx, llvm::Function *function, const FunctionType *type);
+    void handleFuncParams(FunctionEmitContext *ctx, llvm::Function *function, const FunctionType *type);
+
   private:
     void emitCode(FunctionEmitContext *ctx, llvm::Function *function, SourcePos firstStmtPos);
 

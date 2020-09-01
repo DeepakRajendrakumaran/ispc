@@ -282,7 +282,8 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
         ctx->StoreInst(taskCount2, taskCountSym2->storagePtr);
     } else {
         // Regular, non-task function or GPU task
-        llvm::Function::arg_iterator argIter = function->arg_begin();
+        handleFuncParams(ctx, function, type);
+        /*llvm::Function::arg_iterator argIter = function->arg_begin();
         for (unsigned int i = 0; i < args.size(); ++i, ++argIter) {
             Symbol *argSym = args[i];
             if (argSym == NULL)
@@ -326,7 +327,7 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
             }
 
             Assert(++argIter == function->arg_end());
-        }
+        }*/
     }
 
     // Finally, we can generate code for the function
@@ -567,6 +568,9 @@ void Function::GenerateIR() {
                     if (function->hasParamAttribute(i, llvm::Attribute::NoAlias)) {
                         appFunction->addParamAttr(i, llvm::Attribute::NoAlias);
                     }
+                    if (function->hasParamAttribute(i, llvm::Attribute::InReg)) {
+                        appFunction->addParamAttr(i, llvm::Attribute::InReg);
+                    }
                 }
                 g->target->markFuncWithTargetAttr(appFunction);
 
@@ -589,5 +593,188 @@ void Function::GenerateIR() {
                 function->addFnAttr("CMStackCall");
             }
         }
+    }
+}
+
+void Function::handleFuncParamsDefaultABI(FunctionEmitContext *ctx, llvm::Function *function,
+                                          const FunctionType *type) {
+
+    llvm::Function::arg_iterator argIter = function->arg_begin();
+    for (unsigned int i = 0; i < args.size(); ++i, ++argIter) {
+        Symbol *argSym = args[i];
+        if (argSym == NULL)
+            // anonymous function parameter
+            continue;
+
+        argIter->setName(argSym->name.c_str());
+
+        // Allocate stack storage for the parameter and emit code
+        // to store the its value there.
+        argSym->storagePtr = ctx->AllocaInst(argSym->type, argSym->name.c_str());
+
+        ctx->StoreInst(&*argIter, argSym->storagePtr, argSym->type);
+        ctx->EmitFunctionParameterDebugInfo(argSym, i);
+    }
+    // If the number of actual function arguments is equal to the
+    // number of declared arguments in decl->functionParams, then we
+    // don't have a mask parameter, so set it to be all on.  This
+    // happens for exmaple with 'export'ed functions that the app
+    // calls.
+
+    if (argIter == function->arg_end()) {
+        Assert(type->isUnmasked || type->isExported || (g->target->isGenXTarget() && type->isTask));
+        ctx->SetFunctionMask(LLVMMaskAllOn);
+    } else {
+        Assert(type->isUnmasked == false);
+
+        // Otherwise use the mask to set the entry mask value
+        argIter->setName("__mask");
+        Assert(argIter->getType() == LLVMTypes::MaskType);
+
+        if (g->target->isGenXTarget()) {
+            // We should not create explicit predication
+            // to avoid EM usage duplication. All stuff
+            // will be done by SIMD CF Lowering
+            // TODO: temporary workaround that will be changed
+            // as part of SPIR-V emitting solution
+            ctx->SetFunctionMask(LLVMMaskAllOn);
+        } else {
+            ctx->SetFunctionMask(&*argIter);
+        }
+
+        Assert(++argIter == function->arg_end());
+    }
+}
+void Function::handleFuncParamsX86_32ABI(FunctionEmitContext *ctx, llvm::Function *function, const FunctionType *type) {
+
+    llvm::FunctionType *llvmFunctionType = type->LLVMFunctionType(g->ctx, false /*disableMask*/);
+    std::vector<ABIArgInfo> argInfo(llvmFunctionType->getNumParams());
+    g->target->computeInfo(llvmFunctionType, argInfo);
+
+    llvm::Value *loadArg = NULL;
+    llvm::Function::arg_iterator argIter = function->arg_begin();
+    unsigned int i = 0;
+
+    for (; i < args.size(); ++i, ++argIter) {
+
+        Symbol *argSym = args[i];
+        if (argSym == NULL)
+            // anonymous function parameter
+            continue;
+
+        argIter->setName(argSym->name.c_str());
+        // Allocate stack storage for the parameter and emit code
+        // to store the its value there.
+        argSym->storagePtr = ctx->AllocaInst(argSym->type, argSym->name.c_str());
+        switch (argInfo[i].getKind()) {
+        case ABIArgInfo::Kind::Direct: {
+
+            ctx->StoreInst(&*argIter, argSym->storagePtr, argSym->type);
+            break;
+        }
+        case ABIArgInfo::Kind::Indirect: {
+
+            loadArg = ctx->LoadInst(&*argIter);
+
+            ctx->StoreInst(loadArg, argSym->storagePtr, argSym->type);
+
+            break;
+        }
+        case ABIArgInfo::Kind::Expand: {
+
+            const llvm::PointerType *allocType = llvm::dyn_cast<llvm::PointerType>(argSym->storagePtr->getType());
+            const llvm::StructType *strctType = llvm::dyn_cast<llvm::StructType>(allocType->getPointerElementType());
+
+            if (!strctType)
+                Assert(0);
+
+            int numElems = strctType->getNumElements();
+            for (int id = 0; id < numElems; id++) {
+
+                if (id > 0) {
+                    ++argIter;
+                }
+
+                llvm::Value *offsets[2] = {LLVMInt32(0), LLVMInt32(id)};
+                llvm::ArrayRef<llvm::Value *> arrayRef(&offsets[0], &offsets[2]);
+
+                loadArg = llvm::GetElementPtrInst::Create(NULL, argSym->storagePtr, arrayRef, "gep",
+                                                          ctx->GetCurrentBasicBlock());
+
+                // loadArg = ctx->GetElementPtrInst(argSym->storagePtr, LLVMInt32(id), argSym->type);
+                ctx->StoreInst(&*(argIter), loadArg);
+
+                // loadArg = ctx->GetElementPtrInst(argSym->storagePtr, LLVMInt32(0), LLVMInt32(id), allocType);
+
+                // callTypes.push_back(strctType->getElementType(id));
+            }
+
+            // Assert(1);
+            break;
+        }
+        case ABIArgInfo::Kind::InAlloca: {
+            printf("\n INALLOCA \n");
+
+            Assert(0);
+            break;
+        }
+        case ABIArgInfo::Kind::Ignore: {
+
+            break;
+        }
+        default: {
+            printf("\n CRASHHHHH 1 \n");
+            Assert(0);
+        }
+        }
+
+        ctx->EmitFunctionParameterDebugInfo(argSym, i);
+    }
+
+    // If the number of actual function arguments is equal to the
+    // number of declared arguments in decl->functionParams, then we
+    // don't have a mask parameter, so set it to be all on.  This
+    // happens for exmaple with 'export'ed functions that the app
+    // calls.
+
+    if (argIter == function->arg_end()) {
+        Assert(type->isUnmasked || type->isExported || (g->target->isGenXTarget() && type->isTask));
+        ctx->SetFunctionMask(LLVMMaskAllOn);
+    } else {
+        Assert(type->isUnmasked == false);
+
+        // Otherwise use the mask to set the entry mask value
+        llvm::Value *newMask = NULL;
+
+        if (argInfo[i].isIndirect()) {
+            newMask = ctx->LoadInst(&*argIter);
+        } else {
+            newMask = argIter;
+        }
+
+        newMask->setName("__mask");
+        Assert(newMask->getType() == LLVMTypes::MaskType);
+
+        if (g->target->isGenXTarget()) {
+            // We should not create explicit predication
+            // to avoid EM usage duplication. All stuff
+            // will be done by SIMD CF Lowering
+            // TODO: temporary workaround that will be changed
+            // as part of SPIR-V emitting solution
+            ctx->SetFunctionMask(LLVMMaskAllOn);
+        } else {
+            ctx->SetFunctionMask(&*newMask);
+        }
+
+        Assert(++argIter == function->arg_end());
+    }
+}
+
+void Function::handleFuncParams(FunctionEmitContext *ctx, llvm::Function *function, const FunctionType *type) {
+
+    if (g->abiInfo == ABIInfo::X86_32ABI) {
+        handleFuncParamsX86_32ABI(ctx, function, type);
+    } else {
+        handleFuncParamsDefaultABI(ctx, function, type);
     }
 }
