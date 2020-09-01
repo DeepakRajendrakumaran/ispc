@@ -78,7 +78,7 @@
 #ifdef ISPC_IS_WINDOWS64
 #define CALLINGCONV __vectorcall
 #else
-#define CALLINGCONV
+#define CALLINGCONV __vectorcall
 #endif
 
 extern "C" {
@@ -110,7 +110,7 @@ int width() {
 
 void ISPCLaunch(void **handle, void *f, void *d, int count0, int count1, int count2) {
     *handle = (void *)(uintptr_t)0xdeadbeef;
-    typedef void (*TaskFuncType)(void *, int, int, int, int, int, int, int, int, int, int);
+    typedef void(CALLINGCONV * TaskFuncType)(void *, int, int, int, int, int, int, int, int, int, int);
     TaskFuncType func = (TaskFuncType)f;
     int count = count0 * count1 * count2, idx = 0;
     for (int k = 0; k < count2; ++k)
