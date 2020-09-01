@@ -3201,6 +3201,97 @@ static unsigned int lCalleeArgCount(llvm::Value *callee, const FunctionType *fun
     return ft->getNumParams();
 }
 
+/** Given a value representing a function to be called or possibly-varying
+    pointer to a function to be called, figure out how many arguments the
+    function has. */
+static unsigned int lCallerArgCount(llvm::Value *func, const FunctionType *funcType,
+                                    std::vector<llvm::Value *> argVals) {
+    unsigned int callerArgCount = argVals.size();
+    if (llvm::isa<llvm::VectorType>(func->getType()) == false) {
+        // Regular 'uniform' function call--just one function or function
+        // pointer, so just emit the IR directly.
+
+        if (g->abiInfo == ABIInfo::X86_32ABI) {
+            if (funcType) {
+                llvm::FunctionType *llvmFunctionType = funcType->LLVMFunctionType(g->ctx, false /*disableMask*/);
+                std::vector<ABIArgInfo> argInfo(llvmFunctionType->getNumParams());
+                g->target->computeInfo(llvmFunctionType, argInfo);
+                for (int i = 0; i < argVals.size(); i++) {
+
+                    if (argInfo[i].getKind() == ABIArgInfo::Kind::Expand) {
+                        if (const llvm::StructType *strctType =
+                                llvm::dyn_cast<llvm::StructType>(argVals[i]->getType())) {
+                            callerArgCount += strctType->getNumElements() - 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return callerArgCount;
+}
+
+void FunctionEmitContext::ProcessArgForX86ABI(llvm::FunctionType *llvmFunctionType,
+                                              std::vector<llvm::Value *> &argVals) {
+
+    std::vector<llvm::Value *> rebuiltArgVals;
+    std::vector<ABIArgInfo> argInfo(llvmFunctionType->getNumParams());
+    g->target->computeInfo(llvmFunctionType, argInfo);
+
+    llvm::Value *allocaVal = NULL;
+    llvm::Value *llvmArgVal = NULL;
+
+    for (int i = 0; i < argVals.size(); i++) {
+        argInfo[i].print();
+
+        switch (argInfo[i].getKind()) {
+        case ABIArgInfo::Kind::Direct: {
+
+            rebuiltArgVals.push_back(argVals[i]);
+            break;
+        }
+        case ABIArgInfo::Kind::Indirect: {
+
+            allocaVal = AllocaInst(llvmFunctionType->getParamType(i));
+            StoreInst(argVals[i], allocaVal);
+            rebuiltArgVals.push_back(allocaVal);
+            break;
+        }
+        case ABIArgInfo::Kind::Expand: {
+
+            llvm::StructType *strctType = llvm::dyn_cast<llvm::StructType>(argVals[i]->getType());
+            if (!strctType)
+                Assert(0);
+
+            allocaVal = AllocaInst(strctType);
+
+            int numElems = strctType->getNumElements();
+            for (int id = 0; id < numElems; id++) {
+                llvm::Value *offsets[2] = {LLVMInt32(0), LLVMInt32(id)};
+                llvm::ArrayRef<llvm::Value *> arrayRef(&offsets[0], &offsets[2]);
+                llvmArgVal = llvm::GetElementPtrInst::Create(NULL, allocaVal, arrayRef, "gep", GetCurrentBasicBlock());
+                llvmArgVal = LoadInst(llvmArgVal);
+                rebuiltArgVals.push_back(llvmArgVal);
+            }
+
+            break;
+        }
+        case ABIArgInfo::Kind::InAlloca:
+
+            Assert(1);
+            break;
+        case ABIArgInfo::Kind::Ignore:
+
+            break;
+        default:
+            printf("\n CRASHHHHH 1 \n");
+            Assert(0);
+        }
+    }
+
+    argVals = rebuiltArgVals;
+}
+
 llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType *funcType,
                                            const std::vector<llvm::Value *> &args, const char *name) {
     if (func == NULL) {
@@ -3213,8 +3304,13 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
     // isn't the case for things like intrinsics, builtins, and extern "C"
     // functions from the application.  Add the mask if it's needed.
     unsigned int calleeArgCount = lCalleeArgCount(func, funcType);
-    AssertPos(currentPos, argVals.size() + 1 == calleeArgCount || argVals.size() == calleeArgCount);
-    if (argVals.size() + 1 == calleeArgCount) {
+    unsigned int callerArgCount = lCallerArgCount(func, funcType, argVals);
+    bool disableMask = true;
+    AssertPos(currentPos, callerArgCount + 1 == calleeArgCount || argVals.size() == callerArgCount);
+    if (callerArgCount + 1 == calleeArgCount) {
+
+        disableMask = false;
+
         llvm::Value *mask = NULL;
 
 #ifdef ISPC_GENX_ENABLED
@@ -3231,6 +3327,14 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
     if (llvm::isa<llvm::VectorType>(func->getType()) == false) {
         // Regular 'uniform' function call--just one function or function
         // pointer, so just emit the IR directly.
+
+        if (g->abiInfo == ABIInfo::X86_32ABI) {
+            if (funcType) {
+                llvm::FunctionType *llvmFunctionType = funcType->LLVMFunctionType(g->ctx, disableMask);
+                ProcessArgForX86ABI(llvmFunctionType, argVals);
+            }
+        }
+
 #if ISPC_LLVM_VERSION >= ISPC_LLVM_11_0
         llvm::PointerType *func_ptr_type = llvm::dyn_cast<llvm::PointerType>(func->getType());
         llvm::FunctionType *func_type = llvm::dyn_cast<llvm::FunctionType>(func_ptr_type->getPointerElementType());
@@ -3266,12 +3370,12 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
                 cc->addAttribute(llvm::AttributeList::ReturnIndex, llvm::Attribute::NoAlias);
             }
             // TO DO:Add x86 changes as a separate commit
-            /* unsigned int argSize = cc->arg_size();
+            unsigned int argSize = cc->arg_size();
             llvm::Function *calledFunc = cc->getCalledFunction();
             for (int argNum = 0; argNum < argSize; argNum++) {
                 if (calledFunc->getArg(argNum)->hasAttribute(llvm::Attribute::InReg))
                     cc->addParamAttr(argNum, llvm::Attribute::InReg);
-            }*/
+            }
         }
 
         AddDebugPos(ci);

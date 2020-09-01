@@ -518,6 +518,7 @@ class FunctionEmitContext {
     llvm::PHINode *PhiNode(llvm::Type *type, int count, const char *name = NULL);
     llvm::Instruction *SelectInst(llvm::Value *test, llvm::Value *val0, llvm::Value *val1, const char *name = NULL);
 
+    void ProcessArgForX86ABI(llvm::FunctionType *llvmFunctionType, std::vector<llvm::Value *> &argVals);
     /** Emits IR to do a function call with the given arguments.  If the
         function type is a varying function pointer type, its full type
         must be provided in funcType.  funcType can be NULL if func is a
