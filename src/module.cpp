@@ -712,7 +712,27 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
             functionName += g->target->GetISAString();
         }
     }
-    llvm::Function *function = llvm::Function::Create(llvmFunctionType, linkage, functionName.c_str(), module);
+
+    llvm::Function *function = NULL;
+    if (g->abiInfo == ABIInfo::X86_32ABI) {
+        std::vector<ABIArgInfo> argInfo(llvmFunctionType->getNumParams());
+        g->target->computeInfo(llvmFunctionType, argInfo);
+        llvm::FunctionType *rebuiltllvmFunctionType = g->target->rebuildFunctionType(llvmFunctionType, argInfo);
+        function = llvm::Function::Create(rebuiltllvmFunctionType, linkage, functionName.c_str(), module);
+
+        if (((isVectorCall) && (storageClass == SC_EXTERN_C)) || (storageClass != SC_EXTERN_C)) {
+            g->target->markFuncWithCallingConv(function);
+            g->target->setInRegForFunction(function, argInfo);
+        }
+    }
+
+    else {
+
+        function = llvm::Function::Create(llvmFunctionType, linkage, functionName.c_str(), module);
+        if (((isVectorCall) && (storageClass == SC_EXTERN_C)) || (storageClass != SC_EXTERN_C)) {
+            g->target->markFuncWithCallingConv(function);
+        }
+    }
 
     if (g->target_os == TargetOS::windows) {
         // Make export functions callable from DLLs.
@@ -752,9 +772,6 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
             // This also applies transitively to members I think?
             function->addParamAttr(0, llvm::Attribute::NoAlias);
         }
-    }
-    if (((isVectorCall) && (storageClass == SC_EXTERN_C)) || (storageClass != SC_EXTERN_C)) {
-        g->target->markFuncWithCallingConv(function);
     }
 
     g->target->markFuncWithTargetAttr(function);
@@ -2283,6 +2300,9 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
     // type for the dispatch function in case of pointers to varyings
     llvm::FunctionType *ftype = lGetVaryingDispatchType(funcs);
 
+    std::vector<ABIArgInfo> argInfo(ftype->getNumParams());
+    g->target->computeInfo(ftype, argInfo);
+
     // Now we insert type-punned declarations for dispatched functions.
     // This is needed when compiling modules for a set of architectures
     // with different vector lengths. Due to restrictions, the return
@@ -2296,6 +2316,7 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
             targetFuncs[i] =
                 llvm::Function::Create(ftype, llvm::GlobalValue::ExternalLinkage, funcs.func[i]->getName(), module);
             g->target->markFuncWithCallingConv(targetFuncs[i]);
+            g->target->setInRegForFunction(targetFuncs[i], argInfo);
         } else
             targetFuncs[i] = NULL;
     }
@@ -2306,6 +2327,7 @@ static void lCreateDispatchFunction(llvm::Module *module, llvm::Function *setISA
     llvm::Function *dispatchFunc =
         llvm::Function::Create(ftype, llvm::GlobalValue::ExternalLinkage, name.c_str(), module);
     g->target->markFuncWithCallingConv(dispatchFunc);
+    g->target->setInRegForFunction(dispatchFunc, argInfo);
     llvm::BasicBlock *bblock = llvm::BasicBlock::Create(*g->ctx, "entry", dispatchFunc);
 
     // Start by calling out to the function that determines the system's
