@@ -6135,6 +6135,19 @@ define i32 @__packed_load_active64(i64 * %startptr, <4 x i64> * %val_ptr,
   %res = call i32 @__reduce_add_int32(<WIDTH x i32> %ext)
   ret i32 %res
 }
+
+declare <4 x i32> @llvm.masked.expandload.v4i32 (i32*, <4 x i1>, <4 x i32>)
+declare void @llvm.masked.store.v4i32.p0v4i32(<4 x i32>, <4 x i32>*, i32, <4 x i1>)
+define i32 @__packed_load_active32(i32 * %startptr, <4 x i32> * %val_ptr,
+                                 <4 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <4 x MASK> %full_mask, zeroinitializer
+  %vec_load = call <4 x i32> @llvm.masked.expandload.v4i32(i32* %startptr, <4 x i1> %i1mask, <4 x i32> undef)
+  call void @llvm.masked.store.v4i32.p0v4i32(<4 x i32> %vec_load, <4 x i32>* %val_ptr, i32 4, <4 x i1> %i1mask)
+  %i8mask = zext <4 x i1> %i1mask to <4 x i8>
+  %i32mask = bitcast <4 x i8> %i8mask to i32
+  %ret = call i32 @llvm.ctpop.i32(i32 %i32mask)
+   ret i32 %ret
+}
 ')
 
 define(`packed_load_and_store64_vec8', `
@@ -6147,6 +6160,20 @@ define i32 @__packed_load_active64(i64 * %startptr, <8 x i64> * %val_ptr,
   %ext = zext <WIDTH x i1> %i1mask to <WIDTH x i32>
   %res = call i32 @__reduce_add_int32(<WIDTH x i32> %ext)
   ret i32 %res
+}
+
+declare <8 x i32> @llvm.masked.expandload.v8i32 (i32*, <8 x i1>, <8 x i32>)
+declare void @llvm.masked.store.v8i32.p0v8i32(<8 x i32>, <8 x i32>*, i32, <8 x i1>)
+declare i8 @llvm.ctpop.i8(i8)
+define i32 @__packed_load_active32(i32 * %startptr, <8 x i32> * %val_ptr,
+                                 <8 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <8 x MASK> %full_mask, zeroinitializer
+  %vec_load = call <8 x i32> @llvm.masked.expandload.v8i32(i32* %startptr, <8 x i1> %i1mask, <8 x i32> undef)
+  call void @llvm.masked.store.v8i32.p0v8i32(<8 x i32> %vec_load, <8 x i32>* %val_ptr, i32 4, <8 x i1> %i1mask)
+  %i8mask = bitcast <8 x i1> %i1mask to i8
+  %ret8 = call i8 @llvm.ctpop.i8(i8 %i8mask)
+  %ret = zext i8 %ret8 to i32
+   ret i32 %ret
 }
 ')
 
@@ -6174,6 +6201,20 @@ define i32 @__packed_load_active64(i64 * %startptr, <16 x i64> * %val_ptr,
   %ext = zext <16 x i1> %i1mask to <16 x i32>
   %res = call i32 @__reduce_add_int32(<16 x i32> %ext)
   ret i32 %res
+}
+
+declare <16 x i32> @llvm.masked.expandload.v16i32 (i32*, <16 x i1>, <16 x i32>)
+declare void @llvm.masked.store.v16i32.p0v16i32(<16 x i32>, <16 x i32>*, i32, <16 x i1>)
+declare i16 @llvm.ctpop.i16(i16)
+define i32 @__packed_load_active32(i32 * %startptr, <16 x i32> * %val_ptr,
+                                 <16 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <16 x MASK> %full_mask, zeroinitializer
+  %vec_load = call <16 x i32> @llvm.masked.expandload.v16i32(i32* %startptr, <16 x i1> %i1mask, <16 x i32> undef)
+  call void @llvm.masked.store.v16i32.p0v16i32(<16 x i32> %vec_load, <16 x i32>* %val_ptr, i32 4, <16 x i1> %i1mask)
+  %i16mask = bitcast <16 x i1> %i1mask to i16
+  %ret16 = call i16 @llvm.ctpop.i16(i16 %i16mask)
+  %ret = zext i16 %ret16 to i32
+   ret i32 %ret
 }
 ')
 
@@ -6215,6 +6256,19 @@ define i32 @__packed_load_active64(i64 * %startptr, <32 x i64> * %val_ptr,
   %ext = zext <32 x i1> %i1mask to <32 x i32>
   %res = call i32 @__reduce_add_int32(<32 x i32> %ext)
   ret i32 %res
+}
+
+
+declare <32 x i32> @llvm.masked.expandload.v32i32 (i32*, <32 x i1>, <32 x i32>)
+declare void @llvm.masked.store.v32i32.p0v32i32(<32 x i32>, <32 x i32>*, i32, <32 x i1>)
+define i32 @__packed_load_active32(i32 * %startptr, <32 x i32> * %val_ptr,
+                                 <32 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <32 x MASK> %full_mask, zeroinitializer
+  %vec_load = call <32 x i32> @llvm.masked.expandload.v32i32(i32* %startptr, <32 x i1> %i1mask, <32 x i32> undef)
+  call void @llvm.masked.store.v32i32.p0v32i32(<32 x i32> %vec_load, <32 x i32>* %val_ptr, i32 4, <32 x i1> %i1mask)
+  %i32mask = bitcast <32 x i1> %i1mask to i32
+  %ret = call i32 @llvm.ctpop.i32(i32 %i32mask)
+   ret i32 %ret
 }
 ')
 
@@ -6271,6 +6325,19 @@ define i32 @__packed_load_active64(i64 * %startptr, <64 x i64> * %val_ptr,
   %ext = zext <64 x i1> %i1mask to <64 x i32>
   %res = call i32 @__reduce_add_int32(<64 x i32> %ext)
   ret i32 %res
+}
+
+declare <64 x i32> @llvm.masked.expandload.v64i32 (i32*, <64 x i1>, <64 x i32>)
+declare void @llvm.masked.store.v64i32.p0v64i32(<64 x i32>, <64 x i32>*, i32, <64 x i1>)
+define i32 @__packed_load_active32(i32 * %startptr, <64 x i32> * %val_ptr,
+                                 <64 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <64 x MASK> %full_mask, zeroinitializer
+  %vec_load = call <64 x i32> @llvm.masked.expandload.v64i32(i32* %startptr, <64 x i1> %i1mask, <64 x i32> undef)
+  call void @llvm.masked.store.v64i32.p0v64i32(<64 x i32> %vec_load, <64 x i32>* %val_ptr, i32 4, <64 x i1> %i1mask)
+  %i64mask = bitcast <64 x i1> %i1mask to i64
+  %ret64 = call i64 @llvm.ctpop.i64(i64 %i64mask)
+  %ret = trunc i64 %ret64 to i32
+   ret i32 %ret
 }
 ')
 

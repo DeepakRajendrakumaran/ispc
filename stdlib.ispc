@@ -1316,7 +1316,7 @@ packed_load_active(uniform int64 a[], varying int64 * uniform vals) {
 static inline uniform int
 packed_load_active(uniform unsigned int a[],
                    varying unsigned int * uniform vals) {
-    return __packed_load_active(a, vals, (UIntMaskType)__mask);
+    return __packed_load_active32(a, vals, (UIntMaskType)__mask);
 }
 
 static inline uniform int
@@ -1334,7 +1334,7 @@ packed_store_active2(uniform unsigned int a[],
 
 static inline uniform int
 packed_load_active(uniform int a[], varying int * uniform vals) {
-    return __packed_load_active(a, vals, (IntMaskType)__mask);
+    return __packed_load_active32(a, vals, (IntMaskType)__mask);
 }
 
 static inline uniform int
