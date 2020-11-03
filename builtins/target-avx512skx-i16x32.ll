@@ -895,3 +895,5 @@ transcendetals_decl()
 trigonometry_decl()
 
 saturation_arithmetic_novec()
+
+packed_load_and_store64()

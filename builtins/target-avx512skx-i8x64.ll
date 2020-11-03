@@ -40,6 +40,7 @@ stdlib_core()
 scans()
 reduce_equal(WIDTH)
 rdrand_decls()
+packed_load_and_store64()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Stub for mask conversion. LLVM's intrinsics want i1 mask, but we use i8

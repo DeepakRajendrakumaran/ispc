@@ -41,6 +41,7 @@ reduce_equal(WIDTH)
 rdrand_definition()
 popcnt()
 ctlztz()
+packed_load_and_store64()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; broadcast/rotate/shuffle

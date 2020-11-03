@@ -40,6 +40,7 @@ popcnt()
 define_prefetches()
 define_shuffles()
 aossoa()
+packed_load_and_store64()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; rounding floats

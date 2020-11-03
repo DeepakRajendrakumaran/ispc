@@ -6124,6 +6124,169 @@ define void @__masked_store_blend_i16(<16 x i16>* nocapture, <16 x i16>,
 }
 ')
 
+define(`packed_load_and_store64_vec4', `
+declare <4 x i64> @llvm.masked.expandload.v4i64 (i64*, <4 x i1>, <4 x i64>)
+define i32 @__packed_load_active64(i64 * %startptr, <4 x i64> * %val_ptr,
+                                 <4 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <4 x MASK> %full_mask, zeroinitializer
+  %vec_load = call <4 x i64> @llvm.masked.expandload.v4i64(i64* %startptr, <4 x i1> %i1mask, <4 x i64> undef)
+  store <WIDTH x i64> %vec_load, <WIDTH x i64> * %val_ptr, align 4
+  %ext = zext <WIDTH x i1> %i1mask to <WIDTH x i32>
+  %res = call i32 @__reduce_add_int32(<WIDTH x i32> %ext)
+  ret i32 %res
+}
+')
+
+define(`packed_load_and_store64_vec8', `
+declare <8 x i64> @llvm.masked.expandload.v8i64 (i64*, <8 x i1>, <8 x i64>)
+define i32 @__packed_load_active64(i64 * %startptr, <8 x i64> * %val_ptr,
+                                 <8 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <WIDTH x MASK> %full_mask, zeroinitializer
+  %vec_load = call <WIDTH x i64> @llvm.masked.expandload.v8i64(i64* %startptr, <WIDTH x i1> %i1mask, <WIDTH x i64> undef)
+  store <WIDTH x i64> %vec_load, <WIDTH x i64> * %val_ptr, align 4
+  %ext = zext <WIDTH x i1> %i1mask to <WIDTH x i32>
+  %res = call i32 @__reduce_add_int32(<WIDTH x i32> %ext)
+  ret i32 %res
+}
+')
+
+define(`packed_load_and_store64_vec16', `
+declare <8 x i64> @llvm.masked.expandload.v8i64 (i64*, <8 x i1>, <8 x i64>)
+define void @__packed_load_active64_8(i64 * %startptr, <8 x i64> * %val_ptr,
+                                 <8 x i1> %i1mask) nounwind alwaysinline {
+  %vec_load = call <8 x i64> @llvm.masked.expandload.v8i64(i64* %startptr, <8 x i1> %i1mask, <8 x i64> undef)
+  store <8 x i64> %vec_load, <8 x i64> * %val_ptr, align 4
+  ret void
+}
+
+define i32 @__packed_load_active64(i64 * %startptr, <16 x i64> * %val_ptr,
+                                 <16 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <16 x MASK> %full_mask,  zeroinitializer
+  %i1mask1 = shufflevector <16 x i1> %i1mask, <16 x i1> undef, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>
+  %i1mask2 = shufflevector <16 x i1> %i1mask, <16 x i1> undef, <8 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+  %val_ptr_base1 = bitcast <16 x i64> * %val_ptr to i64 *
+  %val_ptr_base2 = getelementptr PTR_OP_ARGS(`i64') %val_ptr_base1, i32 8
+  %val_ptr_1 = bitcast i64 *%val_ptr_base1 to <8 x i64> *
+  %val_ptr_2 = bitcast i64 *%val_ptr_base2 to <8 x i64> *
+  call void @__packed_load_active64_8(i64* %startptr, <8 x i64> * %val_ptr_1, <8 x i1> %i1mask1)
+  %startptr2 = getelementptr PTR_OP_ARGS(`i64') %startptr, i32 8
+  call void @__packed_load_active64_8(i64* %startptr2, <8 x i64> * %val_ptr_2, <8 x i1> %i1mask2)
+  %ext = zext <16 x i1> %i1mask to <16 x i32>
+  %res = call i32 @__reduce_add_int32(<16 x i32> %ext)
+  ret i32 %res
+}
+')
+
+define(`packed_load_and_store64_vec32', `
+declare <8 x i64> @llvm.masked.expandload.v8i64 (i64*, <8 x i1>, <8 x i64>)
+define void @__packed_load_active64_8(i64 * %startptr, <8 x i64> * %val_ptr,
+                                 <8 x i1> %i1mask) nounwind alwaysinline {
+  %vec_load = call <8 x i64> @llvm.masked.expandload.v8i64(i64* %startptr, <8 x i1> %i1mask, <8 x i64> undef)
+  store <8 x i64> %vec_load, <8 x i64> * %val_ptr, align 4
+  ret void
+}
+
+define void @__packed_load_active64_16(i64 * %startptr, <16 x i64> * %val_ptr,
+                                 <16 x i1> %i1mask) nounwind alwaysinline {
+  %i1mask1 = shufflevector <16 x i1> %i1mask, <16 x i1> undef, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>
+  %i1mask2 = shufflevector <16 x i1> %i1mask, <16 x i1> undef, <8 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+  %val_ptr_base1 = bitcast <16 x i64> * %val_ptr to i64 *
+  %val_ptr_base2 = getelementptr PTR_OP_ARGS(`i64') %val_ptr_base1, i32 8
+  %val_ptr_1 = bitcast i64 *%val_ptr_base1 to <8 x i64> *
+  %val_ptr_2 = bitcast i64 *%val_ptr_base2 to <8 x i64> *
+  call void @__packed_load_active64_8(i64* %startptr, <8 x i64> * %val_ptr_1, <8 x i1> %i1mask1)
+  %startptr2 = getelementptr PTR_OP_ARGS(`i64') %startptr, i32 8
+  call void @__packed_load_active64_8(i64* %startptr2, <8 x i64> * %val_ptr_2, <8 x i1> %i1mask2)
+  ret void
+}
+
+define i32 @__packed_load_active64(i64 * %startptr, <32 x i64> * %val_ptr,
+                                 <32 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <32 x MASK> %full_mask,  zeroinitializer
+  %mask1 = shufflevector <32 x i1> %i1mask, <32 x i1> undef, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+  %mask2 = shufflevector <32 x i1> %i1mask, <32 x i1> undef, <16 x i32> <i32 16, i32 17, i32 18, i32 19, i32 20, i32 21, i32 22, i32 23, i32 24, i32 25, i32 26, i32 27, i32 28, i32 29, i32 30, i32 31>
+  %val_ptr_base1 = bitcast <32 x i64> * %val_ptr to i64 *
+  %val_ptr_base2 = getelementptr PTR_OP_ARGS(`i64') %val_ptr_base1, i32 16
+  %val_ptr_1 = bitcast i64 *%val_ptr_base1 to <16 x i64> *
+  %val_ptr_2 = bitcast i64 *%val_ptr_base2 to <16 x i64> *
+  %startptr2 = getelementptr PTR_OP_ARGS(`i64') %startptr, i32 16
+  call void @__packed_load_active64_16(i64 * %startptr, <16 x i64> * %val_ptr_1, <16 x i1> %mask1)
+  call void @__packed_load_active64_16(i64 * %startptr2, <16 x i64> * %val_ptr_2, <16 x i1> %mask2)
+  %ext = zext <32 x i1> %i1mask to <32 x i32>
+  %res = call i32 @__reduce_add_int32(<32 x i32> %ext)
+  ret i32 %res
+}
+')
+
+
+define(`packed_load_and_store64_vec64', `
+declare <8 x i64> @llvm.masked.expandload.v8i64 (i64*, <8 x i1>, <8 x i64>)
+define void @__packed_load_active64_8(i64 * %startptr, <8 x i64> * %val_ptr,
+                                 <8 x i1> %i1mask) nounwind alwaysinline {
+  %vec_load = call <8 x i64> @llvm.masked.expandload.v8i64(i64* %startptr, <8 x i1> %i1mask, <8 x i64> undef)
+  store <8 x i64> %vec_load, <8 x i64> * %val_ptr, align 4
+  ret void
+}
+
+define void @__packed_load_active64_16(i64 * %startptr, <16 x i64> * %val_ptr,
+                                 <16 x i1> %i1mask) nounwind alwaysinline {
+  %i1mask1 = shufflevector <16 x i1> %i1mask, <16 x i1> undef, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7>
+  %i1mask2 = shufflevector <16 x i1> %i1mask, <16 x i1> undef, <8 x i32> <i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+  %val_ptr_base1 = bitcast <16 x i64> * %val_ptr to i64 *
+  %val_ptr_base2 = getelementptr PTR_OP_ARGS(`i64') %val_ptr_base1, i32 8
+  %val_ptr_1 = bitcast i64 *%val_ptr_base1 to <8 x i64> *
+  %val_ptr_2 = bitcast i64 *%val_ptr_base2 to <8 x i64> *
+  call void @__packed_load_active64_8(i64* %startptr, <8 x i64> * %val_ptr_1, <8 x i1> %i1mask1)
+  %startptr2 = getelementptr PTR_OP_ARGS(`i64') %startptr, i32 8
+  call void @__packed_load_active64_8(i64* %startptr2, <8 x i64> * %val_ptr_2, <8 x i1> %i1mask2)
+  ret void
+}
+
+define void @__packed_load_active64_32(i64 * %startptr, <32 x i64> * %val_ptr,
+                                 <32 x i1> %full_mask) nounwind alwaysinline {
+  %mask1 = shufflevector <32 x i1> %full_mask, <32 x i1> undef, <16 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15>
+  %mask2 = shufflevector <32 x i1> %full_mask, <32 x i1> undef, <16 x i32> <i32 16, i32 17, i32 18, i32 19, i32 20, i32 21, i32 22, i32 23, i32 24, i32 25, i32 26, i32 27, i32 28, i32 29, i32 30, i32 31>
+  %val_ptr_base1 = bitcast <32 x i64> * %val_ptr to i64 *
+  %val_ptr_base2 = getelementptr PTR_OP_ARGS(`i64') %val_ptr_base1, i32 16
+  %val_ptr_1 = bitcast i64 *%val_ptr_base1 to <16 x i64> *
+  %val_ptr_2 = bitcast i64 *%val_ptr_base2 to <16 x i64> *
+  %startptr2 = getelementptr PTR_OP_ARGS(`i64') %startptr, i32 16
+  call void @__packed_load_active64_16(i64 * %startptr, <16 x i64> * %val_ptr_1, <16 x i1> %mask1)
+  call void @__packed_load_active64_16(i64 * %startptr2, <16 x i64> * %val_ptr_2, <16 x i1> %mask2)
+  ret void
+}
+
+define i32 @__packed_load_active64(i64 * %startptr, <64 x i64> * %val_ptr,
+                                 <64 x MASK> %full_mask) nounwind alwaysinline {
+  %i1mask = icmp ne <64 x MASK> %full_mask,  zeroinitializer
+  %mask1 = shufflevector <64 x i1> %i1mask, <64 x i1> undef, <32 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 17, i32 18, i32 19, i32 20, i32 21, i32 22, i32 23, i32 24, i32 25, i32 26, i32 27, i32 28, i32 29, i32 30, i32 31>
+  %mask2 = shufflevector <64 x i1> %i1mask, <64 x i1> undef, <32 x i32> <i32 32, i32 33, i32 34, i32 35, i32 36, i32 37, i32 38, i32 39, i32 40, i32 41, i32 42, i32 43, i32 44, i32 45, i32 46, i32 47, i32 48, i32 49, i32 50, i32 51, i32 52, i32 53, i32 54, i32 55, i32 56, i32 57, i32 58, i32 59, i32 60, i32 61, i32 62, i32 63>
+  %val_ptr_base1 = bitcast <64 x i64> * %val_ptr to i64 *
+  %val_ptr_base2 = getelementptr PTR_OP_ARGS(`i64') %val_ptr_base1, i32 32
+  %val_ptr_1 = bitcast i64 *%val_ptr_base1 to <32 x i64> *
+  %val_ptr_2 = bitcast i64 *%val_ptr_base2 to <32 x i64> *
+  %startptr2 = getelementptr PTR_OP_ARGS(`i64') %startptr, i32 32
+  call void @__packed_load_active64_32(i64 * %startptr, <32 x i64> * %val_ptr_1, <32 x i1> %mask1)
+  call void @__packed_load_active64_32(i64 * %startptr2, <32 x i64> * %val_ptr_2, <32 x i1> %mask2)
+  %ext = zext <64 x i1> %i1mask to <64 x i32>
+  %res = call i32 @__reduce_add_int32(<64 x i32> %ext)
+  ret i32 %res
+}
+')
+
+
+
+define(`packed_load_and_store64',
+`ifelse(WIDTH,  `4', `packed_load_and_store64_vec4()', 
+        WIDTH,  `8', `packed_load_and_store64_vec8()',
+        WIDTH, `16', `packed_load_and_store64_vec16()',
+        WIDTH, `32', `packed_load_and_store64_vec32()',
+        WIDTH, `64', `packed_load_and_store64_vec64()',
+                     `errprint(`ERROR: packed_load_and_store64() macro called with unsupported width = 'WIDTH
+)
+                      m4exit(`1')')
+')
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; packed load and store functions
 ;;

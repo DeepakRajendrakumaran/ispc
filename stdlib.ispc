@@ -1303,6 +1303,17 @@ static unsigned int64 exclusive_scan_or(unsigned int64 v) {
 // packed load, store
 
 static inline uniform int
+packed_load_active(uniform unsigned int64 a[],
+                   varying unsigned int64 * uniform vals) {
+    return __packed_load_active64(a, vals, (UIntMaskType)__mask);
+}
+
+static inline uniform int
+packed_load_active(uniform int64 a[], varying int64 * uniform vals) {
+    return __packed_load_active64(a, vals, (IntMaskType)__mask);
+}
+
+static inline uniform int
 packed_load_active(uniform unsigned int a[],
                    varying unsigned int * uniform vals) {
     return __packed_load_active(a, vals, (UIntMaskType)__mask);

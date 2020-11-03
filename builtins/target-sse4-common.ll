@@ -38,6 +38,7 @@ define_prefetches()
 define_shuffles()
 aossoa()
 rdrand_decls()
+packed_load_and_store64()
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; rounding floats
