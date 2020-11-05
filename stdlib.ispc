@@ -1322,7 +1322,7 @@ packed_load_active(uniform unsigned int a[],
 static inline uniform int
 packed_store_active(uniform unsigned int a[],
                     unsigned int vals) {
-    return __packed_store_active(a, vals, (UIntMaskType)__mask);
+    return __packed_store_active32(a, vals, (UIntMaskType)__mask);
 }
 
 static inline uniform int
