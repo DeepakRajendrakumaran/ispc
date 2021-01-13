@@ -1299,7 +1299,7 @@ llvm::Value *FunctionEmitContext::Any(llvm::Value *mask) {
     // We can actually call either one, since both are i32s as far as
     // LLVM's type system is concerned...
     llvm::Function *fmm = mm[0]->function;
-    return CallInst(fmm, NULL, mask, LLVMGetName(mask, "_any"));
+    return CallInst(fmm, NULL, mask, LLVMGetName(mask, "_any").c_str());
 }
 
 llvm::Value *FunctionEmitContext::All(llvm::Value *mask) {
@@ -1315,7 +1315,7 @@ llvm::Value *FunctionEmitContext::All(llvm::Value *mask) {
     // We can actually call either one, since both are i32s as far as
     // LLVM's type system is concerned...
     llvm::Function *fmm = mm[0]->function;
-    return CallInst(fmm, NULL, mask, LLVMGetName(mask, "_all"));
+    return CallInst(fmm, NULL, mask, LLVMGetName(mask, "_all").c_str());
 }
 
 llvm::Value *FunctionEmitContext::None(llvm::Value *mask) {
@@ -1331,7 +1331,7 @@ llvm::Value *FunctionEmitContext::None(llvm::Value *mask) {
     // We can actually call either one, since both are i32s as far as
     // LLVM's type system is concerned...
     llvm::Function *fmm = mm[0]->function;
-    return CallInst(fmm, NULL, mask, LLVMGetName(mask, "_none"));
+    return CallInst(fmm, NULL, mask, LLVMGetName(mask, "_none").c_str());
 }
 
 llvm::Value *FunctionEmitContext::LaneMask(llvm::Value *v) {
@@ -1349,7 +1349,7 @@ llvm::Value *FunctionEmitContext::LaneMask(llvm::Value *v) {
     // We can actually call either one, since both are i32s as far as
     // LLVM's type system is concerned...
     llvm::Function *fmm = mm[0]->function;
-    return CallInst(fmm, NULL, v, LLVMGetName(v, "_movmsk"));
+    return CallInst(fmm, NULL, v, LLVMGetName(v, "_movmsk").c_str());
 }
 
 llvm::Value *FunctionEmitContext::MasksAllEqual(llvm::Value *v1, llvm::Value *v2) {
@@ -1364,11 +1364,11 @@ llvm::Value *FunctionEmitContext::MasksAllEqual(llvm::Value *v1, llvm::Value *v2
 #else
     if (g->target->getArch() == Arch::wasm32) {
         llvm::Function *fmm = m->module->getFunction("__wasm_cmp_msk_eq");
-        return CallInst(fmm, NULL, {v1, v2}, LLVMGetName("wasm_cmp_msk_eq", v1, v2));
+        return CallInst(fmm, NULL, {v1, v2}, LLVMGetName("wasm_cmp_msk_eq", v1, v2).c_str());
     }
     llvm::Value *mm1 = LaneMask(v1);
     llvm::Value *mm2 = LaneMask(v2);
-    return CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_EQ, mm1, mm2, LLVMGetName("equal", v1, v2));
+    return CmpInst(llvm::Instruction::ICmp, llvm::CmpInst::ICMP_EQ, mm1, mm2, LLVMGetName("equal", v1, v2).c_str());
 #endif
 }
 
@@ -1416,14 +1416,15 @@ llvm::Value *FunctionEmitContext::I1VecToBoolVec(llvm::Value *b) {
 
         for (unsigned int i = 0; i < at->getNumElements(); ++i) {
             llvm::Value *elt = ExtractInst(b, i);
-            llvm::Value *sext = SwitchBoolSize(elt, LLVMTypes::BoolVectorStorageType, LLVMGetName(elt, "_to_boolvec"));
+            llvm::Value *sext =
+                SwitchBoolSize(elt, LLVMTypes::BoolVectorStorageType, LLVMGetName(elt, "_to_boolvec").c_str());
             ret = InsertInst(ret, sext, i);
         }
         return ret;
     } else {
         // For non-array types, convert to 'LLVMTypes::BoolVectorType' if
         // necessary.
-        return SwitchBoolSize(b, LLVMTypes::BoolVectorType, LLVMGetName(b, "_to_boolvec"));
+        return SwitchBoolSize(b, LLVMTypes::BoolVectorType, LLVMGetName(b, "_to_boolvec").c_str());
     }
 }
 
@@ -1711,7 +1712,7 @@ llvm::Value *FunctionEmitContext::BitCastInst(llvm::Value *value, llvm::Type *ty
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_bitcast");
+        name = LLVMGetName(value, "_bitcast").c_str();
 
     llvm::Instruction *inst = new llvm::BitCastInst(value, type, name, bblock);
     AddDebugPos(inst);
@@ -1729,7 +1730,7 @@ llvm::Value *FunctionEmitContext::PtrToIntInst(llvm::Value *value, const char *n
         return value;
 
     if (name == NULL)
-        name = LLVMGetName(value, "_ptr2int");
+        name = LLVMGetName(value, "_ptr2int").c_str();
     llvm::Type *type = LLVMTypes::PointerIntType;
     llvm::Instruction *inst = new llvm::PtrToIntInst(value, type, name, bblock);
     AddDebugPos(inst);
@@ -1743,7 +1744,7 @@ llvm::Value *FunctionEmitContext::PtrToIntInst(llvm::Value *value, llvm::Type *t
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_ptr2int");
+        name = LLVMGetName(value, "_ptr2int").c_str();
 
     llvm::Type *fromType = value->getType();
     if (llvm::isa<llvm::VectorType>(fromType)) {
@@ -1771,7 +1772,7 @@ llvm::Value *FunctionEmitContext::IntToPtrInst(llvm::Value *value, llvm::Type *t
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_int2ptr");
+        name = LLVMGetName(value, "_int2ptr").c_str();
 
     llvm::Type *fromType = value->getType();
     if (llvm::isa<llvm::VectorType>(fromType)) {
@@ -1799,7 +1800,7 @@ llvm::Instruction *FunctionEmitContext::TruncInst(llvm::Value *value, llvm::Type
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_trunc");
+        name = LLVMGetName(value, "_trunc").c_str();
 
     // TODO: we should probably handle the array case as in
     // e.g. BitCastInst(), but we don't currently need that functionality
@@ -1816,7 +1817,7 @@ llvm::Instruction *FunctionEmitContext::CastInst(llvm::Instruction::CastOps op, 
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_cast");
+        name = LLVMGetName(value, "_cast").c_str();
 
     // TODO: we should probably handle the array case as in
     // e.g. BitCastInst(), but we don't currently need that functionality
@@ -1832,7 +1833,7 @@ llvm::Instruction *FunctionEmitContext::FPCastInst(llvm::Value *value, llvm::Typ
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_cast");
+        name = LLVMGetName(value, "_cast").c_str();
 
     // TODO: we should probably handle the array case as in
     // e.g. BitCastInst(), but we don't currently need that functionality
@@ -1848,7 +1849,7 @@ llvm::Instruction *FunctionEmitContext::SExtInst(llvm::Value *value, llvm::Type 
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_sext");
+        name = LLVMGetName(value, "_sext").c_str();
 
     // TODO: we should probably handle the array case as in
     // e.g. BitCastInst(), but we don't currently need that functionality
@@ -1864,7 +1865,7 @@ llvm::Instruction *FunctionEmitContext::ZExtInst(llvm::Value *value, llvm::Type 
     }
 
     if (name == NULL)
-        name = LLVMGetName(value, "_zext");
+        name = LLVMGetName(value, "_zext").c_str();
 
     // TODO: we should probably handle the array case as in
     // e.g. BitCastInst(), but we don't currently need that functionality
@@ -1913,14 +1914,14 @@ llvm::Value *FunctionEmitContext::applyVaryingGEP(llvm::Value *basePtr, llvm::Va
         scale = SmearUniform(scale);
         Assert(index != NULL);
         // offset = index * scale
-        offset = BinaryOperator(llvm::Instruction::Mul, scale, index, LLVMGetName("mul", scale, index));
+        offset = BinaryOperator(llvm::Instruction::Mul, scale, index, LLVMGetName("mul", scale, index).c_str());
     }
 
     // For 64-bit targets, if we've been doing our offset calculations in
     // 32 bits, we still have to convert to a 64-bit value before we
     // actually add the offset to the pointer.
     if (g->target->is32Bit() == false && g->opt.force32BitAddressing == true)
-        offset = SExtInst(offset, LLVMTypes::Int64VectorType, LLVMGetName(offset, "_to_64"));
+        offset = SExtInst(offset, LLVMTypes::Int64VectorType, LLVMGetName(offset, "_to_64").c_str());
 
     // Smear out the pointer to be varying; either the base pointer or the
     // index must be varying for this method to be called.
@@ -1929,7 +1930,7 @@ llvm::Value *FunctionEmitContext::applyVaryingGEP(llvm::Value *basePtr, llvm::Va
     llvm::Value *varyingPtr = baseIsUniform ? SmearUniform(basePtr) : basePtr;
 
     // newPtr = ptr + offset
-    return BinaryOperator(llvm::Instruction::Add, varyingPtr, offset, LLVMGetName(basePtr, "_offset"));
+    return BinaryOperator(llvm::Instruction::Add, varyingPtr, offset, LLVMGetName(basePtr, "_offset").c_str());
 }
 
 void FunctionEmitContext::MatchIntegerTypes(llvm::Value **v0, llvm::Value **v1) {
@@ -2006,8 +2007,8 @@ llvm::Value *FunctionEmitContext::MakeSlicePointer(llvm::Value *ptr, llvm::Value
     llvm::StructType *st = llvm::StructType::get(*g->ctx, eltTypes);
 
     llvm::Value *ret = llvm::UndefValue::get(st);
-    ret = InsertInst(ret, ptr, 0, LLVMGetName(ret, "_slice_ptr"));
-    ret = InsertInst(ret, offset, 1, LLVMGetName(ret, "_slice_offset"));
+    ret = InsertInst(ret, ptr, 0, LLVMGetName(ret, "_slice_ptr").c_str());
+    ret = InsertInst(ret, offset, 1, LLVMGetName(ret, "_slice_offset").c_str());
     return ret;
 }
 
@@ -2249,12 +2250,12 @@ llvm::Value *FunctionEmitContext::SwitchBoolSize(llvm::Value *value, llvm::Type 
     if (g->target->getDataLayout()->getTypeSizeInBits(fromType) >
         g->target->getDataLayout()->getTypeSizeInBits(toType)) {
         if (name == NULL)
-            name = LLVMGetName(value, "_switchBool");
+            name = LLVMGetName(value, "_switchBool").c_str();
         newBool = TruncInst(value, toType, name);
     } else if (g->target->getDataLayout()->getTypeSizeInBits(fromType) <
                g->target->getDataLayout()->getTypeSizeInBits(toType)) {
         if (name == NULL)
-            name = LLVMGetName(value, "_switchBool");
+            name = LLVMGetName(value, "_switchBool").c_str();
         newBool = SExtInst(value, toType, name);
     }
 
@@ -2271,7 +2272,7 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, const Type *type, c
     AssertPos(currentPos, pt != NULL);
 
     if (name == NULL)
-        name = LLVMGetName(ptr, "_load");
+        name = LLVMGetName(ptr, "_load").c_str();
 
 #if ISPC_LLVM_VERSION >= ISPC_LLVM_11_0
     llvm::LoadInst *inst = new llvm::LoadInst(pt->getPointerElementType(), ptr, name, bblock);
@@ -2307,8 +2308,8 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, const Type *type, c
 static llvm::Value *lFinalSliceOffset(FunctionEmitContext *ctx, llvm::Value *ptr, const PointerType **ptrType) {
     Assert(CastType<PointerType>(*ptrType) != NULL);
 
-    llvm::Value *slicePtr = ctx->ExtractInst(ptr, 0, LLVMGetName(ptr, "_ptr"));
-    llvm::Value *sliceOffset = ctx->ExtractInst(ptr, 1, LLVMGetName(ptr, "_offset"));
+    llvm::Value *slicePtr = ctx->ExtractInst(ptr, 0, LLVMGetName(ptr, "_ptr").c_str());
+    llvm::Value *sliceOffset = ctx->ExtractInst(ptr, 1, LLVMGetName(ptr, "_offset").c_str());
 
     // slicePtr should be a pointer to an soa-width wide array of the
     // final atomic/enum/pointer type
@@ -2327,7 +2328,7 @@ static llvm::Value *lFinalSliceOffset(FunctionEmitContext *ctx, llvm::Value *ptr
         slicePtr = ctx->BitCastInst(slicePtr, (*ptrType)->LLVMType(g->ctx));
 
     // And finally index based on the slice offset
-    return ctx->GetElementPtrInst(slicePtr, sliceOffset, *ptrType, LLVMGetName(slicePtr, "_final_gep"));
+    return ctx->GetElementPtrInst(slicePtr, sliceOffset, *ptrType, LLVMGetName(slicePtr, "_final_gep").c_str());
 }
 
 /** Utility routine that loads from a uniform pointer to soa<> data,
@@ -2372,7 +2373,7 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, llvm::Value *mask, 
     AssertPos(currentPos, ptrRefType != NULL && mask != NULL);
 
     if (name == NULL)
-        name = LLVMGetName(ptr, "_load");
+        name = LLVMGetName(ptr, "_load").c_str();
 
     const PointerType *ptrType;
     const Type *elType;
@@ -2453,13 +2454,12 @@ llvm::Value *FunctionEmitContext::LoadInst(llvm::Value *ptr, llvm::Value *mask, 
         // We can actually call either one, since both are i32s as far as
         // LLVM's type system is concerned...
         llvm::Function *fmm = mm[0]->function;
-        llvm::Value *int_mask = CallInst(fmm, NULL, mask, LLVMGetName(mask, "_movmsk"));
+        llvm::Value *int_mask = CallInst(fmm, NULL, mask, LLVMGetName(mask, "_movmsk").c_str());
         std::vector<Symbol *> lz;
         m->symbolTable->LookupFunction("__count_trailing_zeros_i64", &lz);
         llvm::Function *flz = lz[0]->function;
-        llvm::Value *elem_idx = CallInst(flz, NULL, int_mask, LLVMGetName(mask, "_clz"));
-        llvm::Value *elem = llvm::ExtractElementInst::Create(gather_result, elem_idx,
-                                                             LLVMGetName(gather_result, "_umasked_elem"), bblock);
+        llvm::Value *elem_idx = CallInst(flz, NULL, int_mask, LLVMGetName(mask, "_clz").c_str());
+        llvm::Value *elem = llvm::ExtractElementInst::Create(gather_result, elem_idx, LLVMGetName(gather_result, "_umasked_elem").c_str(), bblock);
         return elem;
     }
 }
@@ -3084,7 +3084,7 @@ llvm::Value *FunctionEmitContext::ExtractInst(llvm::Value *v, int elt, const cha
     if (name == NULL) {
         char buf[32];
         snprintf(buf, sizeof(buf), "_extract_%d", elt);
-        name = LLVMGetName(v, buf);
+        name = LLVMGetName(v, buf).c_str();
     }
     llvm::Instruction *ei = NULL;
     if (llvm::isa<llvm::VectorType>(v->getType()))
@@ -3104,7 +3104,7 @@ llvm::Value *FunctionEmitContext::InsertInst(llvm::Value *v, llvm::Value *eltVal
     if (name == NULL) {
         char buf[32];
         snprintf(buf, sizeof(buf), "_insert_%d", elt);
-        name = LLVMGetName(v, buf);
+        name = LLVMGetName(v, buf).c_str();
     }
 
     llvm::Instruction *ii = NULL;
@@ -3125,7 +3125,7 @@ llvm::Value *FunctionEmitContext::ShuffleInst(llvm::Value *v1, llvm::Value *v2, 
     if (name == NULL) {
         char buf[32];
         snprintf(buf, sizeof(buf), "_shuffle");
-        name = LLVMGetName(v1, buf);
+        name = LLVMGetName(v1, buf).c_str();
     }
 
     llvm::Instruction *ii = new llvm::ShuffleVectorInst(v1, v2, mask, name, bblock);
@@ -3151,7 +3151,7 @@ llvm::Value *FunctionEmitContext::BroadcastValue(llvm::Value *v, llvm::Type *vec
     if (name == NULL) {
         char buf[32];
         snprintf(buf, sizeof(buf), "_broadcast");
-        name = LLVMGetName(v, buf);
+        name = LLVMGetName(v, buf).c_str();
     }
 
     // Generate the following sequence:
@@ -3198,7 +3198,7 @@ llvm::Instruction *FunctionEmitContext::SelectInst(llvm::Value *test, llvm::Valu
     }
 
     if (name == NULL)
-        name = LLVMGetName(test, "_select");
+        name = LLVMGetName(test, "_select").c_str();
 
     llvm::Instruction *inst = llvm::SelectInst::Create(test, val0, val1, name, bblock);
     AddDebugPos(inst);
