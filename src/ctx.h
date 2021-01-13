@@ -525,7 +525,7 @@ class FunctionEmitContext {
         must be provided in funcType.  funcType can be NULL if func is a
         uniform function pointer. */
     llvm::Value *CallInst(llvm::Value *func, const FunctionType *funcType, const std::vector<llvm::Value *> &args,
-                          cconst llvm::Twine &name = "");
+                          const llvm::Twine &name = "");
 
     /** This is a convenience method that issues a call instruction to a
         function that takes just a single argument. */

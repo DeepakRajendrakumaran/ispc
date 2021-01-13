@@ -1607,9 +1607,10 @@ llvm::Value *LLVMShuffleVectors(llvm::Value *v1, llvm::Value *v2, int32_t shuf[]
 
 /*std::string LLVMGetName(llvm::Value *v, const char *s) {
     if (v == NULL)
-        return llvm::Twine(s).str();
+        return s;
     std::string ret = std::string(v->getName());
-    return ret;
+    ret += s;
+    return strdup(ret.c_str());
 }
 
 std::string LLVMGetName(const char *op, llvm::Value *v1, llvm::Value *v2) {

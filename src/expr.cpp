@@ -1021,11 +1021,11 @@ static llvm::Value *lEmitNegate(Expr *arg, SourcePos pos, FunctionEmitContext *c
     ctx->SetDebugPos(pos);
     if (type->IsFloatType()) {
         llvm::Value *zero = llvm::ConstantFP::getZeroValueForNegation(type->LLVMType(g->ctx));
-        return ctx->BinaryOperator(llvm::Instruction::FSub, zero, argVal, LLVMGetName(argVal, "_negate").c_str());
+        return ctx->BinaryOperator(llvm::Instruction::FSub, zero, argVal, llvm::Twine(argVal->getName(), "_negate"));
     } else {
         llvm::Value *zero = lLLVMConstantValue(type, g->ctx, 0.);
         AssertPos(pos, type->IsIntType());
-        return ctx->BinaryOperator(llvm::Instruction::Sub, zero, argVal, LLVMGetName(argVal, "_negate").c_str());
+        return ctx->BinaryOperator(llvm::Instruction::Sub, zero, argVal, llvm::Twine(argVal->getName(), "_negate"));
     }
 }
 
@@ -1047,11 +1047,11 @@ llvm::Value *UnaryExpr::GetValue(FunctionEmitContext *ctx) const {
         return lEmitNegate(expr, pos, ctx);
     case LogicalNot: {
         llvm::Value *argVal = expr->GetValue(ctx);
-        return ctx->NotOperator(argVal, LLVMGetName(argVal, "_logicalnot").c_str());
+        return ctx->NotOperator(argVal, llvm::Twine(argVal->getName(), "_logicalnot"));
     }
     case BitNot: {
         llvm::Value *argVal = expr->GetValue(ctx);
-        return ctx->NotOperator(argVal, LLVMGetName(argVal, "_bitnot").c_str());
+        return ctx->NotOperator(argVal, llvm::Twine(argVal->getName(), "_bitnot"));
     }
     default:
         FATAL("logic error");
@@ -1518,7 +1518,7 @@ static llvm::Value *lEmitBinaryArith(BinaryExpr::Op op, llvm::Value *value0, llv
             return NULL;
         }
 
-        return ctx->BinaryOperator(inst, value0, value1, LLVMGetName(opName, value0, value1).c_str());
+        return ctx->BinaryOperator(inst, value0, value1, llvm::Twine(opName, value0->getName()) + value1->getName().c_str());
     }
 }
 
@@ -1563,7 +1563,7 @@ static llvm::Value *lEmitBinaryCmp(BinaryExpr::Op op, llvm::Value *e0Val, llvm::
     }
 
     llvm::Value *cmp = ctx->CmpInst(isFloatOp ? llvm::Instruction::FCmp : llvm::Instruction::ICmp, pred, e0Val, e1Val,
-                                    LLVMGetName(opName, e0Val, e1Val).c_str());
+                                    llvm::Twine(opName, e0Val->getName()) + e1Val->getName());
     // This is a little ugly: CmpInst returns i1 values, but we use vectors
     // of i32s for varying bool values; type convert the result here if
     // needed.
@@ -4177,7 +4177,7 @@ static llvm::Value *lConvertToSlicePointer(FunctionEmitContext *ctx, llvm::Value
     // offsets
     llvm::Value *result = llvm::Constant::getNullValue(sliceStructType);
     // And replace the pointer in the struct with the given pointer
-    return ctx->InsertInst(result, ptr, 0, LLVMGetName(ptr, "_slice").c_str());
+    return ctx->InsertInst(result, ptr, 0, llvm::Twine(ptr->getName(), "_slice"));
 }
 
 /** If the given array index is a compile time constant, check to see if it
@@ -4259,7 +4259,7 @@ llvm::Value *IndexExpr::GetLValue(FunctionEmitContext *ctx) const {
         basePtrValue = lConvertPtrToSliceIfNeeded(ctx, basePtrValue, &baseExprType);
 
         llvm::Value *ptr = ctx->GetElementPtrInst(basePtrValue, indexValue, baseExprType,
-                                                  LLVMGetName(basePtrValue, "_offset").c_str());
+                                                  llvm::Twine(basePtrValue->getName(), "_offset"));
         return lAddVaryingOffsetsIfNeeded(ctx, ptr, GetLValueType());
     }
 
@@ -4291,7 +4291,7 @@ llvm::Value *IndexExpr::GetLValue(FunctionEmitContext *ctx) const {
 
     // And do the actual indexing calculation..
     llvm::Value *ptr =
-        ctx->GetElementPtrInst(basePtr, LLVMInt32(0), indexValue, basePtrType, LLVMGetName(basePtr, "_offset").c_str());
+        ctx->GetElementPtrInst(basePtr, LLVMInt32(0), indexValue, basePtrType, llvm::Twine(basePtr->getName(), "_offset"));
     return lAddVaryingOffsetsIfNeeded(ctx, ptr, GetLValueType());
 }
 
@@ -4788,15 +4788,14 @@ llvm::Value *VectorMemberExpr::GetValue(FunctionEmitContext *ctx) const {
         for (size_t i = 0; i < identifier.size(); ++i) {
             char idStr[2] = {identifier[i], '\0'};
             llvm::Value *elementPtr =
-                ctx->AddElementOffset(basePtr, indices[i], basePtrType, LLVMGetName(basePtr, idStr).c_str());
+                ctx->AddElementOffset(basePtr, indices[i], basePtrType, llvm::Twine(basePtr->getName(), idStr));
             llvm::Value *elementValue = ctx->LoadInst(elementPtr, elementMask, elementPtrType);
 
-            const char *resultName = LLVMGetName(resultPtr, idStr).c_str();
-            llvm::Value *ptmp = ctx->AddElementOffset(resultPtr, i, NULL, resultName);
+            llvm::Value *ptmp = ctx->AddElementOffset(resultPtr, i, NULL, llvm::Twine(resultPtr->getName(), idStr));
             ctx->StoreInst(elementValue, ptmp, elementPtrType, expr->GetType()->IsUniformType());
         }
 
-        return ctx->LoadInst(resultPtr, memberType, LLVMGetName(basePtr, "_swizzle").c_str());
+        return ctx->LoadInst(resultPtr, memberType, llvm::Twine(basePtr->getName(), "_swizzle"));
     }
 }
 
@@ -4932,7 +4931,7 @@ llvm::Value *MemberExpr::GetValue(FunctionEmitContext *ctx) const {
 
     ctx->SetDebugPos(pos);
     std::string suffix = std::string("_") + identifier;
-    return ctx->LoadInst(lvalue, mask, lvalueType, LLVMGetName(lvalue, suffix.c_str()).c_str());
+    return ctx->LoadInst(lvalue, mask, lvalueType, llvm::Twine(lvalue->getName(), suffix.c_str()));
 }
 
 const Type *MemberExpr::GetType() const { return NULL; }
@@ -6502,7 +6501,7 @@ static llvm::Value *lTypeConvAtomic(FunctionEmitContext *ctx, llvm::Value *exprV
                 // does for everyone else...
                 Assert(cast);
                 cast = ctx->SwitchBoolSize(cast, LLVMTypes::BoolVectorType->getElementType(),
-                                           LLVMGetName(cast, "to_i_bool").c_str());
+                                           llvm::Twine(cast->getName(), "to_i_bool"));
             }
         } else {
             // fromType->IsVaryingType())
@@ -8246,7 +8245,7 @@ llvm::Value *NewExpr::GetValue(FunctionEmitContext *ctx) const {
         // pointer of the return type and to run the code for initializers,
         // if present.
         llvm::Type *ptrType = retType->LLVMType(g->ctx);
-        ptrValue = ctx->BitCastInst(ptrValue, ptrType, LLVMGetName(ptrValue, "_cast_ptr").c_str());
+        ptrValue = ctx->BitCastInst(ptrValue, ptrType, llvm::Twine(ptrValue->getName(), "_cast_ptr"));
 
         if (initExpr != NULL)
             InitSymbol(ptrValue, allocType, initExpr, ctx, pos);
