@@ -331,8 +331,8 @@ extern llvm::Value *LLVMShuffleVectors(llvm::Value *v1, llvm::Value *v2, int32_t
 /** Utility routines to concat strings with the names of existing values to
     create meaningful new names for instruction values.
 */
-extern std::string LLVMGetName(llvm::Value *v, const char *);
-extern std::string LLVMGetName(const char *op, llvm::Value *v1, llvm::Value *v2);
+//extern std::string LLVMGetName(llvm::Value *v, const char *);
+//extern std::string LLVMGetName(const char *op, llvm::Value *v1, llvm::Value *v2);
 #ifdef ISPC_GENX_ENABLED
 enum AddressSpace { Local, Global, External };
 
