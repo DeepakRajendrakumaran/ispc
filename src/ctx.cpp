@@ -1215,6 +1215,7 @@ std::vector<std::string> FunctionEmitContext::GetLabels() {
 }
 
 void FunctionEmitContext::CurrentLanesReturned(Expr *expr, bool doCoherenceCheck) {
+    llvm::TimeTraceScope TimeScope("CurrentLanesReturned");
     const Type *returnType = function->GetReturnType();
     if (returnType->IsVoidType()) {
         if (expr != NULL)
@@ -1229,7 +1230,12 @@ void FunctionEmitContext::CurrentLanesReturned(Expr *expr, bool doCoherenceCheck
 
         expr = TypeConvertExpr(expr, returnType, "return statement");
         if (expr != NULL) {
-            llvm::Value *retVal = expr->GetValue(this);
+            llvm::TimeTraceScope TimeScope("CurrentLanesReturned Store");
+            llvm::Value *retVal = NULL;
+            {
+                llvm::TimeTraceScope TimeScope("CurrentLanesReturned GetValue");
+                retVal = expr->GetValue(this);
+            }
             if (retVal != NULL) {
                 if (returnType->IsUniformType() || CastType<ReferenceType>(returnType) != NULL)
                     StoreInst(retVal, returnValuePtr, returnType, returnType->IsUniformType());
@@ -1238,6 +1244,7 @@ void FunctionEmitContext::CurrentLanesReturned(Expr *expr, bool doCoherenceCheck
                     // in the return value memory; this preserves the return
                     // values from other lanes that may have executed return
                     // statements previously.
+                    llvm::TimeTraceScope TimeScope("CurrentLanesReturned StoreInst");
                     StoreInst(retVal, returnValuePtr, GetInternalMask(), returnType,
                               PointerType::GetUniform(returnType));
                 }
@@ -1257,6 +1264,7 @@ void FunctionEmitContext::CurrentLanesReturned(Expr *expr, bool doCoherenceCheck
     } else {
         // Otherwise we update the returnedLanes value by ANDing it with
         // the current lane mask.
+        llvm::TimeTraceScope TimeScope("CurrentLanesReturned Branch");
         llvm::Value *oldReturnedLanes = LoadInst(returnedLanesPtr, NULL, "old_returned_lanes");
         llvm::Value *newReturnedLanes =
             BinaryOperator(llvm::Instruction::Or, oldReturnedLanes, GetFullMask(), "old_mask|returned_lanes");
@@ -3456,6 +3464,7 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
 }
 
 llvm::Instruction *FunctionEmitContext::ReturnInst() {
+    llvm::TimeTraceScope TimeScope("ReturnInst");
     if (launchedTasks)
         // Add a sync call at the end of any function that launched tasks
         SyncInst();

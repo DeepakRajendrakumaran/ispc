@@ -2769,10 +2769,12 @@ void ReturnStmt::EmitCode(FunctionEmitContext *ctx) const {
         Error(pos, "\"return\" statement is illegal inside a \"foreach\" loop.");
         return;
     }
+    llvm::TimeTraceScope TimeScope("ReturnStmt emitCode");
 
     // Make sure we're not trying to return a reference to something where
     // that doesn't make sense
     const Function *func = ctx->GetFunction();
+   // llvm::TimeTraceScope TimeScope1("ReturnStmt emitCode 1");
     const Type *returnType = func->GetReturnType();
     if (IsReferenceType(returnType) == true && IsReferenceType(expr->GetType()) == false) {
         const Type *lvType = expr->GetLValueType();
@@ -2793,6 +2795,7 @@ void ReturnStmt::EmitCode(FunctionEmitContext *ctx) const {
 
     ctx->SetDebugPos(pos);
     ctx->CurrentLanesReturned(expr, true);
+    // llvm::TimeTraceScope TimeScope3("ReturnStmt emitCode 3");
 }
 
 Stmt *ReturnStmt::TypeCheck() { return this; }

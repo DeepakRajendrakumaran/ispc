@@ -1034,6 +1034,7 @@ static llvm::Value *lEmitNegate(Expr *arg, SourcePos pos, FunctionEmitContext *c
 UnaryExpr::UnaryExpr(Op o, Expr *e, SourcePos p) : Expr(p, UnaryExprID), op(o) { expr = e; }
 
 llvm::Value *UnaryExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("UnaryExpr::GetValue");
     if (expr == NULL)
         return NULL;
 
@@ -1940,6 +1941,7 @@ bool BinaryExpr::HasAmbiguousVariability(std::vector<const Expr *> &warn) const 
 }
 
 llvm::Value *BinaryExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("BinaryExpr::GetValue");
     if (!arg0 || !arg1) {
         AssertPos(pos, m->errorCount > 0);
         return NULL;
@@ -2909,6 +2911,7 @@ AssignExpr::AssignExpr(AssignExpr::Op o, Expr *a, Expr *b, SourcePos p) : Expr(p
 }
 
 llvm::Value *AssignExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("assignExpr::GetValue");
     const Type *type = NULL;
     if (lvalue == NULL || rvalue == NULL || (type = GetType()) == NULL)
         return NULL;
@@ -3177,6 +3180,7 @@ bool SelectExpr::HasAmbiguousVariability(std::vector<const Expr *> &warn) const 
 }
 
 llvm::Value *SelectExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("SelectExpr::GetValue");
     if (!expr1 || !expr2 || !test)
         return NULL;
 
@@ -3514,6 +3518,7 @@ llvm::Value *FunctionCallExpr::GetValue(FunctionEmitContext *ctx) const {
     if (func == NULL || args == NULL)
         return NULL;
 
+    llvm::TimeTraceScope TimeScope("FunctionCallExpr::GetValue");
     ctx->SetDebugPos(pos);
 
     llvm::Value *callee = func->GetValue(ctx);
@@ -3624,7 +3629,12 @@ llvm::Value *FunctionCallExpr::GetLValue(FunctionEmitContext *ctx) const {
 
 bool FullResolveOverloads(Expr *func, ExprList *args, std::vector<const Type *> *argTypes,
                           std::vector<bool> *argCouldBeNULL, std::vector<bool> *argIsConstant) {
+    printf("\n FullResolveOverloads ENTER \n");
+    llvm::TimeTraceScope TimeScope("FullResolveOverloads");
+
+    //func->Print();
     for (unsigned int i = 0; i < args->exprs.size(); ++i) {
+        
         Expr *expr = args->exprs[i];
         if (expr == NULL)
             return false;
@@ -3635,13 +3645,16 @@ bool FullResolveOverloads(Expr *func, ExprList *args, std::vector<const Type *> 
         argCouldBeNULL->push_back(lIsAllIntZeros(expr) || llvm::dyn_cast<NullPointerExpr>(expr));
         argIsConstant->push_back(llvm::dyn_cast<ConstExpr>(expr) || llvm::dyn_cast<NullPointerExpr>(expr));
     }
+   // printf("\n FullResolveOverloads EXIT\n");
     return true;
 }
 
 const Type *FunctionCallExpr::GetType() const {
     std::vector<const Type *> argTypes;
     std::vector<bool> argCouldBeNULL, argIsConstant;
+    printf("\n FunctionCallExpr::GetType() ENTER \n");
     if (FullResolveOverloads(func, args, &argTypes, &argCouldBeNULL, &argIsConstant) == true) {
+         printf("\n FunctionCallExpr::GetType() After FullResolveOverloads \n");
         FunctionSymbolExpr *fse = llvm::dyn_cast<FunctionSymbolExpr>(func);
         if (fse != NULL) {
             fse->ResolveOverloads(args->pos, argTypes, &argCouldBeNULL, &argIsConstant);
@@ -3675,6 +3688,14 @@ Expr *FunctionCallExpr::TypeCheck() {
     std::vector<const Type *> argTypes;
     std::vector<bool> argCouldBeNULL, argIsConstant;
 
+     /*for (unsigned int i = 0; i < args->exprs.size(); ++i) {
+        
+        Expr *expr = args->exprs[i];
+        if (expr != NULL) {
+            printf("\n FunctionCallExpr::TypeCheck : i = %d \n", i);
+            expr->Print();
+        }
+     }*/
     if (FullResolveOverloads(func, args, &argTypes, &argCouldBeNULL, &argIsConstant) == false) {
         return NULL;
     }
@@ -4143,6 +4164,7 @@ llvm::Value *IndexExpr::GetValue(FunctionEmitContext *ctx) const {
         AssertPos(pos, m->errorCount > 0);
         return NULL;
     }
+    llvm::TimeTraceScope TimeScope("IndexExpr::GetValue");
 
     // If this is going to be a gather, make sure that the varying return
     // type can represent the result (i.e. that we don't have a bound
@@ -4811,6 +4833,7 @@ const Type *VectorMemberExpr::GetLValueType() const {
 }
 
 llvm::Value *VectorMemberExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("VectorMemberExpr::GetValue");
     if (identifier.length() == 1) {
         return MemberExpr::GetValue(ctx);
     } else {
@@ -4976,6 +4999,7 @@ llvm::Value *MemberExpr::GetValue(FunctionEmitContext *ctx) const {
     if (!expr)
         return NULL;
 
+    llvm::TimeTraceScope TimeScope("MemberExpr::GetValue");
     llvm::Value *lvalue = GetLValue(ctx);
     const Type *lvalueType = GetLValueType();
 
@@ -5386,6 +5410,7 @@ AtomicType::BasicType ConstExpr::getBasicType() const {
 const Type *ConstExpr::GetType() const { return type; }
 
 llvm::Value *ConstExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     ctx->SetDebugPos(pos);
     bool isVarying = type->IsVaryingType();
 
@@ -5454,6 +5479,7 @@ template <typename From, typename To> static void lConvert(const From *from, To 
 }
 
 int ConstExpr::GetValues(int64_t *ip, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, ip, Count(), forceVarying);
@@ -5495,6 +5521,7 @@ int ConstExpr::GetValues(int64_t *ip, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(uint64_t *up, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, up, Count(), forceVarying);
@@ -5536,6 +5563,7 @@ int ConstExpr::GetValues(uint64_t *up, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(double *d, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, d, Count(), forceVarying);
@@ -5577,6 +5605,7 @@ int ConstExpr::GetValues(double *d, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(float *fp, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, fp, Count(), forceVarying);
@@ -5618,6 +5647,7 @@ int ConstExpr::GetValues(float *fp, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(bool *b, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, b, Count(), forceVarying);
@@ -5659,6 +5689,7 @@ int ConstExpr::GetValues(bool *b, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(int8_t *ip, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, ip, Count(), forceVarying);
@@ -5700,6 +5731,7 @@ int ConstExpr::GetValues(int8_t *ip, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(uint8_t *up, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, up, Count(), forceVarying);
@@ -5741,6 +5773,7 @@ int ConstExpr::GetValues(uint8_t *up, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(int16_t *ip, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, ip, Count(), forceVarying);
@@ -5782,6 +5815,7 @@ int ConstExpr::GetValues(int16_t *ip, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(uint16_t *up, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, up, Count(), forceVarying);
@@ -5823,6 +5857,7 @@ int ConstExpr::GetValues(uint16_t *up, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(int32_t *ip, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, ip, Count(), forceVarying);
@@ -5864,6 +5899,7 @@ int ConstExpr::GetValues(int32_t *ip, bool forceVarying) const {
 }
 
 int ConstExpr::GetValues(uint32_t *up, bool forceVarying) const {
+    llvm::TimeTraceScope TimeScope("ConstExpr::GetValue");
     switch (getBasicType()) {
     case AtomicType::TYPE_BOOL:
         lConvert(boolVal, up, Count(), forceVarying);
@@ -6686,7 +6722,7 @@ void TypeCastExpr::PrintAmbiguousVariability() const {
 llvm::Value *TypeCastExpr::GetValue(FunctionEmitContext *ctx) const {
     if (!expr)
         return NULL;
-
+llvm::TimeTraceScope TimeScope("TypeCastExpr::GetValue");
     ctx->SetDebugPos(pos);
     const Type *toType = GetType(), *fromType = expr->GetType();
     if (toType == NULL || fromType == NULL) {
@@ -7259,6 +7295,7 @@ std::pair<llvm::Constant *, bool> TypeCastExpr::GetConstant(const Type *constTyp
 ReferenceExpr::ReferenceExpr(Expr *e, SourcePos p) : Expr(p, ReferenceExprID) { expr = e; }
 
 llvm::Value *ReferenceExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("ReferenceExpr::GetValue");
     ctx->SetDebugPos(pos);
     if (expr == NULL) {
         AssertPos(pos, m->errorCount > 0);
@@ -7343,6 +7380,7 @@ void ReferenceExpr::Print() const {
 DerefExpr::DerefExpr(Expr *e, SourcePos p, unsigned scid) : Expr(p, scid) { expr = e; }
 
 llvm::Value *DerefExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("DerefExpr::GetValue");
     if (expr == NULL)
         return NULL;
     llvm::Value *ptr = expr->GetValue(ctx);
@@ -7503,6 +7541,7 @@ void RefDerefExpr::Print() const {
 AddressOfExpr::AddressOfExpr(Expr *e, SourcePos p) : Expr(p, AddressOfExprID), expr(e) {}
 
 llvm::Value *AddressOfExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("AddressOfExpr::GetValue");
     ctx->SetDebugPos(pos);
     if (expr == NULL)
         return NULL;
@@ -7645,6 +7684,7 @@ SizeOfExpr::SizeOfExpr(const Type *t, SourcePos p) : Expr(p, SizeOfExprID), expr
 }
 
 llvm::Value *SizeOfExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("SizeOfExpr::GetValue");
     ctx->SetDebugPos(pos);
     const Type *t = expr ? expr->GetType() : type;
     if (t == NULL)
@@ -7714,6 +7754,7 @@ std::pair<llvm::Constant *, bool> SizeOfExpr::GetConstant(const Type *rtype) con
 SymbolExpr::SymbolExpr(Symbol *s, SourcePos p) : Expr(p, SymbolExprID) { symbol = s; }
 
 llvm::Value *SymbolExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("SymbolExpr::GetValue");
     // storagePtr may be NULL due to an earlier compilation error
     if (!symbol || !symbol->storagePtr)
         return NULL;
@@ -7798,6 +7839,7 @@ const Type *FunctionSymbolExpr::GetType() const {
 }
 
 llvm::Value *FunctionSymbolExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("FunctionSymbolExpr::GetValue");
     return matchingFunc ? matchingFunc->function : NULL;
 }
 
@@ -8169,6 +8211,7 @@ Symbol *FunctionSymbolExpr::GetMatchingFunction() { return matchingFunc; }
 const Type *SyncExpr::GetType() const { return AtomicType::Void; }
 
 llvm::Value *SyncExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("SyncExpr::GetValue");
     ctx->SetDebugPos(pos);
     ctx->SyncInst();
     return NULL;
@@ -8189,6 +8232,7 @@ Expr *SyncExpr::Optimize() { return this; }
 // NullPointerExpr
 
 llvm::Value *NullPointerExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("NullPointerExpr::GetValue");
     return llvm::ConstantPointerNull::get(LLVMTypes::VoidPointerType);
 }
 
@@ -8249,6 +8293,7 @@ NewExpr::NewExpr(int typeQual, const Type *t, Expr *init, Expr *count, SourcePos
 }
 
 llvm::Value *NewExpr::GetValue(FunctionEmitContext *ctx) const {
+    llvm::TimeTraceScope TimeScope("NewExpr::GetValue");
     bool do32Bit = (g->target->is32Bit() || g->opt.force32BitAddressing);
 
     // Determine how many elements we need to allocate.  Note that this
