@@ -472,7 +472,11 @@ void Optimize(llvm::Module *module, int optLevel) {
         module->dump();
     }
 #endif
+    printf("\n Optimize \n");
     DebugPassManager optPM;
+
+    /* required for intrinsics */
+    optPM.add(llvm::createLowerMatrixIntrinsicsPass()); // llvm.matrix
     optPM.add(llvm::createVerifierPass(), 0);
 
     optPM.add(new llvm::TargetLibraryInfoWrapperPass(llvm::Triple(module->getTargetTriple())));
@@ -504,6 +508,7 @@ void Optimize(llvm::Module *module, int optLevel) {
             optPM.add(llvm::createPromoteMemoryToRegisterPass());
         }
 #endif
+
         optPM.add(CreateImproveMemoryOpsPass(), 100);
 
         if (g->opt.disableHandlePseudoMemoryOps == false)
