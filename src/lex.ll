@@ -367,6 +367,7 @@ FORTRAN_DOUBLE_NUMBER (([0-9]+\.[0-9]*[dD])|([0-9]+\.[0-9]*[dD][-+]?[0-9]+)|([0-
 
 
 IDENT [a-zA-Z_][a-zA-Z_0-9]*
+INTRINSIC_CALL [@][l][l][v][m][.][.a-zA-Z_0-9]*
 ZO_SWIZZLE ([01]+[w-z]+)+|([01]+[rgba]+)+|([01]+[uv]+)+
 
 %%
@@ -468,6 +469,15 @@ L?\"(\\.|[^\\"])*\" { lStringConst(&yylval, &yylloc); return TOKEN_STRING_LITERA
         return TOKEN_TYPE_NAME;
     else
         return TOKEN_IDENTIFIER;
+}
+
+{INTRINSIC_CALL} {
+    RT;
+    /* We have an identifier--is it a type name or an identifier?
+       The symbol table will straighten us out... */
+    yylval.stringVal = new std::string(yytext);
+    printf("\n INTRINSIC_CALL = %s \n", yylval.stringVal->c_str());
+    return TOKEN_INTRINSIC_CALL;
 }
 
 {INT_NUMBER} {
