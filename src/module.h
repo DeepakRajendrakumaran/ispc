@@ -103,6 +103,8 @@ class Module {
         included in automatically generated header files. */
     void AddExportedTypes(const std::vector<std::pair<const Type *, SourcePos>> &types);
 
+    Symbol *AddLLVMIntrinsicDecl(const std::string &name, ExprList *args);
+
     /** After a source file has been compiled, output can be generated in a
         number of different formats. */
     enum OutputType {

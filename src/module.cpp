@@ -95,6 +95,8 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
+#include <llvm/Target/TargetIntrinsicInfo.h>
+
 #ifdef ISPC_GENX_ENABLED
 #include <LLVMSPIRVLib/LLVMSPIRVLib.h>
 #include <fstream>
@@ -289,13 +291,47 @@ int Module::CompileFile() {
         g->target->markFuncWithTargetAttr(&f);
     ast->GenerateIR();
 
+    // module->dump();
     if (diBuilder)
         diBuilder->finalize();
+
     llvm::TimeTraceScope TimeScope("Optimize");
     if (errorCount == 0)
         Optimize(module, g->opt.level);
 
     return errorCount;
+}
+
+Symbol *Module::AddLLVMIntrinsicDecl(const std::string &name, ExprList *args) {
+    llvm::TargetMachine *targetMachine = g->target->GetTargetMachine();
+    const char *intrinsic_name = name.c_str();
+    const llvm::TargetIntrinsicInfo *TII = targetMachine->getIntrinsicInfo();
+    printf("\n AddLLVMIntrinsicDecl : name = %s \n", intrinsic_name);
+    llvm::Intrinsic::ID ID = llvm::Function::lookupIntrinsicID(llvm::StringRef(intrinsic_name));
+    if (ID == llvm::Intrinsic::not_intrinsic && TII) {
+        //  ID = static_cast<llvm::Intrinsic::ID>(TII->lookupName(llvm::StringRef("llvm.trunc.f32")));
+        ID = static_cast<llvm::Intrinsic::ID>(TII->lookupName(llvm::StringRef(intrinsic_name)));
+    }
+
+    if (ID == llvm::Intrinsic::not_intrinsic) {
+        printf("\n NO INTRINSIC, ID = %d\n", ID);
+        // ERROR/WARN??
+        return NULL;
+    }
+
+    int nInits = args->exprs.size();
+    std::vector<llvm::Type *> exprType;
+    for (int i = 0; i < nInits; ++i) {
+        exprType.push_back((args->exprs[i])->GetType()->LLVMType(g->ctx));
+    }
+    llvm::ArrayRef<llvm::Type *> d_arr(exprType);
+    llvm::Function *d_func = llvm::Intrinsic::getDeclaration(module, ID, d_arr);
+    printf("\n FUNC from LLVM \n");
+    if (d_func)
+        d_func->dump();
+    Symbol *func_sym = lCreateISPCSymbolForLLVMIntrinsic(d_func, symbolTable);
+
+    return func_sym;
 }
 
 void Module::AddTypeDef(const std::string &name, const Type *type, SourcePos pos) {
