@@ -302,7 +302,7 @@ int Module::CompileFile() {
     return errorCount;
 }
 
-Symbol *Module::AddLLVMIntrinsicDecl(const std::string &name, ExprList *args) {
+Symbol *Module::AddLLVMIntrinsicDecl(const std::string &name, ExprList *args, SourcePos pos) {
     llvm::TargetMachine *targetMachine = g->target->GetTargetMachine();
     const char *intrinsic_name = name.c_str();
     const llvm::TargetIntrinsicInfo *TII = targetMachine->getIntrinsicInfo();
@@ -316,19 +316,30 @@ Symbol *Module::AddLLVMIntrinsicDecl(const std::string &name, ExprList *args) {
     if (ID == llvm::Intrinsic::not_intrinsic) {
         printf("\n NO INTRINSIC, ID = %d\n", ID);
         // ERROR/WARN??
+        Error(pos, "LLVM intrinsic \"%s\" not supported.", name.c_str());
         return NULL;
     }
 
-    int nInits = args->exprs.size();
     std::vector<llvm::Type *> exprType;
-    for (int i = 0; i < nInits; ++i) {
-        exprType.push_back((args->exprs[i])->GetType()->LLVMType(g->ctx));
+    if (llvm::Intrinsic::isOverloaded(ID)) {
+        int nInits = args->exprs.size();
+        for (int i = 0; i < nInits; ++i) {
+            exprType.push_back((args->exprs[i])->GetType()->LLVMType(g->ctx));
+        }
     }
     llvm::ArrayRef<llvm::Type *> d_arr(exprType);
     llvm::Function *d_func = llvm::Intrinsic::getDeclaration(module, ID, d_arr);
     printf("\n FUNC from LLVM \n");
     if (d_func)
         d_func->dump();
+    llvm::StringRef func_name = d_func->getName();
+
+    if (g->target->checkIntrinsticSupport(func_name) == false) {
+        // error :unsupported intrinsisc - target
+        Error(pos, "LLVM intrinsic \"%s\" not supported on this target.", name.c_str());
+    }
+    printf("\n 1 : func_name = %s \n", func_name.data());
+    printf("\n func name : In = %s, out = %s \n", name.c_str(), func_name.data());
     Symbol *func_sym = lCreateISPCSymbolForLLVMIntrinsic(d_func, symbolTable);
 
     return func_sym;

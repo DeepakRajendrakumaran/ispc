@@ -408,3 +408,257 @@ TargetOS GetHostOS() {
     return TargetOS::error;
 #endif
 }
+
+// Revisit to make sure
+bool ISPCTargetSupportsSSE(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::sse2_i32x4:
+    case ISPCTarget::sse2_i32x8:
+    case ISPCTarget::sse4_i8x16:
+    case ISPCTarget::sse4_i16x8:
+    case ISPCTarget::sse4_i32x4:
+    case ISPCTarget::sse4_i32x8:
+    case ISPCTarget::avx1_i32x4:
+    case ISPCTarget::avx1_i32x8:
+    case ISPCTarget::avx1_i32x16:
+    case ISPCTarget::avx1_i64x4:
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ISPCTargetSupportsSSE2(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::sse2_i32x4:
+    case ISPCTarget::sse2_i32x8:
+    case ISPCTarget::sse4_i8x16:
+    case ISPCTarget::sse4_i16x8:
+    case ISPCTarget::sse4_i32x4:
+    case ISPCTarget::sse4_i32x8:
+    case ISPCTarget::avx1_i32x4:
+    case ISPCTarget::avx1_i32x8:
+    case ISPCTarget::avx1_i32x16:
+    case ISPCTarget::avx1_i64x4:
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ISPCTargetSupportsSSE3(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::sse4_i8x16:
+    case ISPCTarget::sse4_i16x8:
+    case ISPCTarget::sse4_i32x4:
+    case ISPCTarget::sse4_i32x8:
+    case ISPCTarget::avx1_i32x4:
+    case ISPCTarget::avx1_i32x8:
+    case ISPCTarget::avx1_i32x16:
+    case ISPCTarget::avx1_i64x4:
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// NOT SURE : revisit: matbe check cpu?
+bool ISPCTargetSupportsSSE41(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::sse4_i8x16:
+    case ISPCTarget::sse4_i16x8:
+    case ISPCTarget::sse4_i32x4:
+    case ISPCTarget::sse4_i32x8:
+    case ISPCTarget::avx1_i32x4:
+    case ISPCTarget::avx1_i32x8:
+    case ISPCTarget::avx1_i32x16:
+    case ISPCTarget::avx1_i64x4:
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// NOT SURE : revisit: matbe check cpu?
+bool ISPCTargetSupportsSSE42(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::sse4_i8x16:
+    case ISPCTarget::sse4_i16x8:
+    case ISPCTarget::sse4_i32x4:
+    case ISPCTarget::sse4_i32x8:
+    case ISPCTarget::avx1_i32x4:
+    case ISPCTarget::avx1_i32x8:
+    case ISPCTarget::avx1_i32x16:
+    case ISPCTarget::avx1_i64x4:
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// NOT SURE : revisit: matbe check cpu?
+bool ISPCTargetSupportsSSSSE3(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::sse4_i8x16:
+    case ISPCTarget::sse4_i16x8:
+    case ISPCTarget::sse4_i32x4:
+    case ISPCTarget::sse4_i32x8:
+    case ISPCTarget::avx1_i32x4:
+    case ISPCTarget::avx1_i32x8:
+    case ISPCTarget::avx1_i32x16:
+    case ISPCTarget::avx1_i64x4:
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+bool ISPCTargetSupportsAVX(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::avx1_i32x4:
+    case ISPCTarget::avx1_i32x8:
+    case ISPCTarget::avx1_i32x16:
+    case ISPCTarget::avx1_i64x4:
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+bool ISPCTargetSupportsAVX2(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::avx2_i8x32:
+    case ISPCTarget::avx2_i16x16:
+    case ISPCTarget::avx2_i32x4:
+    case ISPCTarget::avx2_i32x8:
+    case ISPCTarget::avx2_i32x16:
+    case ISPCTarget::avx2_i64x4:
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ISPCTargetSupportsAVX512(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::avx512knl_i32x16:
+    case ISPCTarget::avx512skx_i32x8:
+    case ISPCTarget::avx512skx_i32x16:
+    case ISPCTarget::avx512skx_i8x64:
+    case ISPCTarget::avx512skx_i16x32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ISPCTargetSupportsNEON(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::neon_i8x16:
+    case ISPCTarget::neon_i16x8:
+    case ISPCTarget::neon_i32x4:
+    case ISPCTarget::neon_i32x8:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ISPCTargetSupportsWASM(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::wasm_i32x4:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ISPCTargetIsGEN(ISPCTarget target) {
+    switch (target) {
+    case ISPCTarget::genx_x8:
+    case ISPCTarget::genx_x16:
+        return true;
+    default:
+        return false;
+    }
+}

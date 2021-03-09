@@ -1236,6 +1236,82 @@ Target::Target(Arch arch, const char *cpu, ISPCTarget ispc_target, bool pic, boo
     return;
 }
 
+bool Target::checkIntrinsticSupport(llvm::StringRef name) {
+
+    printf("\n checkIntrinsticSupport : name = %s \n", name.data());
+
+    if (name.consume_front("llvm.") == false) {
+        // warn/error
+        return false;
+    }
+
+    printf("\n 1 checkIntrinsticSupport : name = %s \n", name.data());
+
+    if (name.consume_front("x86.") == true) {
+        if (!ISPCTargetIsX86(m_ispc_target)) {
+            // warn/error
+            return false;
+        }
+        if (name.consume_front("sse.") == true) {
+            if (!ISPCTargetSupportsSSE(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("sse2.") == true) {
+            if (!ISPCTargetSupportsSSE2(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("sse3.") == true) {
+            if (!ISPCTargetSupportsSSE3(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("sse41.") == true) {
+            if (!ISPCTargetSupportsSSE41(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("sse42.") == true) {
+            if (!ISPCTargetSupportsSSE42(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("sssse3.") == true) {
+            if (!ISPCTargetSupportsSSSSE3(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("avx.") == true) {
+            if (!ISPCTargetSupportsAVX(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("avx2.") == true) {
+            if (!ISPCTargetSupportsAVX(m_ispc_target)) {
+                return false;
+            }
+        } else if (name.consume_front("ax512.") == true) {
+            if (!ISPCTargetSupportsAVX512(m_ispc_target)) {
+                return false;
+            }
+        }
+    } else if (name.consume_front("arm.") == true) {
+        if (m_arch != Arch::arm) {
+            return false;
+        }
+        if (name.consume_front("neon.") != true) {
+            return false;
+        }
+    } else if (name.consume_front("aarch64.") == true) {
+        if (m_arch != Arch::aarch64) {
+            return false;
+        }
+        if (name.consume_front("neon.") != true) {
+            return false;
+        }
+    } else if (name.consume_front("wasm.") == true) {
+        if (!ISPCTargetSupportsWASM(m_ispc_target)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 std::string Target::SupportedCPUs() {
     AllCPUs a;
     return a.HumanReadableListOfNames();

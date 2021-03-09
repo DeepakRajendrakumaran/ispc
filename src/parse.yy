@@ -489,10 +489,12 @@ intrincall_expression
       {
           std::string *name = $1;
           name->erase(0, 1);
-          Symbol* sym = m->AddLLVMIntrinsicDecl(*name, $3);
+          Symbol* sym = m->AddLLVMIntrinsicDecl(*name, $3, Union(@1,@4));
           const char *fname = name->c_str();
           const std::vector<Symbol *> funcs{sym};
-          FunctionSymbolExpr *fSym = new FunctionSymbolExpr(fname, funcs, @1);
+          FunctionSymbolExpr *fSym = NULL;
+          if (sym != NULL)
+              fSym = new FunctionSymbolExpr(fname, funcs, @1);
           $$ = new FunctionCallExpr(fSym, $3, Union(@1,@4));
 
       }

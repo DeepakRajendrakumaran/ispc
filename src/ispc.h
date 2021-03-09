@@ -55,6 +55,7 @@
 #define ISPC_HOST_IS_APPLE
 #endif
 
+#include <llvm/ADT/StringRef.h>
 #include <map>
 #include <set>
 #include <stdint.h>
@@ -190,6 +191,8 @@ class Target {
         name, if the name is a known target.  Returns true if the
         target was initialized and false if the name is unknown. */
     Target(Arch arch, const char *cpu, ISPCTarget isa, bool pic, bool printTarget);
+
+    bool checkIntrinsticSupport(llvm::StringRef name);
 
     /** Returns a comma-delimited string giving the names of the currently
         supported CPUs. */
