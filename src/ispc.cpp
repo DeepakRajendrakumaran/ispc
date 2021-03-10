@@ -300,6 +300,47 @@ typedef enum {
     sizeofCPUtype
 } CPUtype;
 
+// Reference
+// include/llvm/IR/IntrinsicsX86.td - x86 intrinsics
+// llvm/lib/Support/X86TargetParser.cpp - cpu features
+std::map<CPUtype, std::set<std::string>> CPUFeatures = {
+    {CPU_x86_64, {"sse", "sse2", "mmx"}},
+    {CPU_Bonnell, {"sse", "sse2", "mmx", "ssse3"}},
+    {CPU_Core2, {"sse", "sse2", "mmx", "ssse3"}},
+    {CPU_Penryn, {"sse", "sse2", "mmx", "ssse3", "sse41"}},
+    {CPU_Nehalem, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42"}},
+    {CPU_PS4, {}},
+    {CPU_SandyBridge, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx"}},
+    {CPU_IvyBridge, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx"}},
+    {CPU_Haswell, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2"}},
+    {CPU_Broadwell, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2"}},
+    {CPU_KNL, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2", "avx512"}},
+    {CPU_SKX, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2", "avx512"}},
+    {CPU_ICL, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2", "avx512"}},
+    {CPU_Silvermont, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42"}},
+    {CPU_ICX, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2", "avx512"}},
+    {CPU_TGL, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2", "avx512"}},
+#if ISPC_LLVM_VERSION >= ISPC_LLVM_12_0
+    {CPU_ADL, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2"}},
+    {CPU_SPR, {"sse", "sse2", "mmx", "ssse3", "sse41", "sse42", "avx", "avx2", "avx512"}},
+#endif
+#ifdef ISPC_ARM_ENABLED
+    // ARM Cortex A9. Supports NEON VFPv3.
+    {CPU_CortexA9, {}},
+
+    // ARM Cortex A15. Supports NEON VFPv4.
+    {CPU_CortexA15, {}},
+    // ARM Cortex A35, A53, A57.
+    {CPU_CortexA35, {}},
+    {CPU_CortexA53, {}},
+    {CPU_CortexA57, {}},
+#endif
+#ifdef ISPC_GENX_ENABLED
+    {CPU_GENX, {}},
+    {CPU_GENX_TGLLP, {}}
+#endif
+};
+
 class AllCPUs {
   private:
     std::vector<std::vector<std::string>> names;
@@ -1252,43 +1293,14 @@ bool Target::checkIntrinsticSupport(llvm::StringRef name) {
             // warn/error
             return false;
         }
-        if (name.consume_front("sse.") == true) {
-            if (!ISPCTargetSupportsSSE(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("sse2.") == true) {
-            if (!ISPCTargetSupportsSSE2(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("sse3.") == true) {
-            if (!ISPCTargetSupportsSSE3(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("sse41.") == true) {
-            if (!ISPCTargetSupportsSSE41(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("sse42.") == true) {
-            if (!ISPCTargetSupportsSSE42(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("sssse3.") == true) {
-            if (!ISPCTargetSupportsSSSSE3(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("avx.") == true) {
-            if (!ISPCTargetSupportsAVX(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("avx2.") == true) {
-            if (!ISPCTargetSupportsAVX(m_ispc_target)) {
-                return false;
-            }
-        } else if (name.consume_front("ax512.") == true) {
-            if (!ISPCTargetSupportsAVX512(m_ispc_target)) {
-                return false;
-            }
+
+        AllCPUs a;
+        std::string featureName = name.substr(0, name.find('.')).str();
+        if (CPUFeatures[a.GetTypeFromName(this->getCPU())].count(featureName) == 0) {
+            // warn/error
+            return false;
         }
+
     } else if (name.consume_front("arm.") == true) {
         if (m_arch != Arch::arm) {
             return false;
@@ -1304,9 +1316,10 @@ bool Target::checkIntrinsticSupport(llvm::StringRef name) {
             return false;
         }
     } else if (name.consume_front("wasm.") == true) {
-        if (!ISPCTargetSupportsWASM(m_ispc_target)) {
-            return false;
-        }
+        // Add Condition
+        // if (!ISPCTargetSupportsWASM(m_ispc_target)) {
+        return false;
+        //}
     }
 
     return true;
