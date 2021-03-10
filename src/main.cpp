@@ -122,6 +122,7 @@ static void lPrintVersion() {
 #endif
 #endif
     printf("    [--error-limit=<value>]\t\tLimit maximum number of errors emitting by ISPC to <value>\n");
+    printf("    [--enable-intrinsic-call]\t\tEnable direct use of intrinsics from ISPC\n");
     printf("    [--force-alignment=<value>]\t\tForce alignment in memory allocations routine to be <value>\n");
     printf("    [-g]\t\t\t\tGenerate source-level debug information\n");
     printf("    [--help]\t\t\t\tPrint help\n");
@@ -685,7 +686,10 @@ int main(int Argc, char *Argv[]) {
 #endif
         }
 #endif
-        else if (!strcmp(argv[i], "-I")) {
+
+        else if (!strcmp(argv[i], "--enable-intrinsic-call")) {
+            g->enableIntrinsicCall = true;
+        } else if (!strcmp(argv[i], "-I")) {
             if (++i != argc) {
                 lParseInclude(argv[i]);
             } else {

@@ -476,7 +476,6 @@ L?\"(\\.|[^\\"])*\" { lStringConst(&yylval, &yylloc); return TOKEN_STRING_LITERA
     /* We have an identifier--is it a type name or an identifier?
        The symbol table will straighten us out... */
     yylval.stringVal = new std::string(yytext);
-    printf("\n INTRINSIC_CALL = %s \n", yylval.stringVal->c_str());
     return TOKEN_INTRINSIC_CALL;
 }
 

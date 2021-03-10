@@ -261,7 +261,7 @@ Symbol *lCreateISPCSymbolForLLVMIntrinsic(llvm::Function *func, SymbolTable *sym
     if (returnType == NULL) {
         Debug(SourcePos(),
               "Failed: return type not representable for "
-              "builtin %s.",
+              "Intrinsic %s.",
               name.c_str());
         // return type not representable in ispc -> not callable from ispc
         return NULL;
@@ -274,7 +274,7 @@ Symbol *lCreateISPCSymbolForLLVMIntrinsic(llvm::Function *func, SymbolTable *sym
         if (type == NULL) {
             Debug(SourcePos(),
                   "Failed: type of parameter %d not "
-                  "representable for builtin %s",
+                  "representable for Intrinsic %s",
                   j, name.c_str());
             return NULL;
         }
@@ -283,7 +283,7 @@ Symbol *lCreateISPCSymbolForLLVMIntrinsic(llvm::Function *func, SymbolTable *sym
 
     FunctionType *funcType = new FunctionType(returnType, argTypes, noPos);
 
-    Debug(noPos, "Created builtin symbol \"%s\" [%s]\n", name.c_str(), funcType->GetString().c_str());
+    Debug(noPos, "Created Intrinsic symbol \"%s\" [%s]\n", name.c_str(), funcType->GetString().c_str());
 
     Symbol *sym = new Symbol(name, noPos, funcType);
     sym->function = func;

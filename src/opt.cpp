@@ -472,11 +472,13 @@ void Optimize(llvm::Module *module, int optLevel) {
         module->dump();
     }
 #endif
-    printf("\n Optimize \n");
     DebugPassManager optPM;
 
-    /* required for intrinsics */
-    optPM.add(llvm::createLowerMatrixIntrinsicsPass()); // llvm.matrix
+    if (g->enableIntrinsicCall) {
+        /* Required for matrix intrinsics
+         * TO-DO : Limit pass to only when llvm.matrix.* intrinsics are used. */
+        optPM.add(llvm::createLowerMatrixIntrinsicsPass()); // llvm.matrix
+    }
     optPM.add(llvm::createVerifierPass(), 0);
 
     optPM.add(new llvm::TargetLibraryInfoWrapperPass(llvm::Triple(module->getTargetTriple())));

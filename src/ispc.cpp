@@ -1278,15 +1278,10 @@ Target::Target(Arch arch, const char *cpu, ISPCTarget ispc_target, bool pic, boo
 }
 
 bool Target::checkIntrinsticSupport(llvm::StringRef name) {
-
-    printf("\n checkIntrinsticSupport : name = %s \n", name.data());
-
     if (name.consume_front("llvm.") == false) {
         // warn/error
         return false;
     }
-
-    printf("\n 1 checkIntrinsticSupport : name = %s \n", name.data());
 
     if (name.consume_front("x86.") == true) {
         if (!ISPCTargetIsX86(m_ispc_target)) {
@@ -1746,6 +1741,7 @@ Globals::Globals() {
     generateDebuggingSymbols = false;
     generateDWARFVersion = 3;
     enableFuzzTest = false;
+    enableIntrinsicCall = false;
     fuzzTestSeed = -1;
     mangleFunctionsWithTarget = false;
     isMultiTargetCompilation = false;

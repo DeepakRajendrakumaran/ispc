@@ -673,6 +673,9 @@ struct Globals {
         compiler. */
     bool enableFuzzTest;
 
+    /* If enabled, allows the user to directly call intrinsics. */
+    bool enableIntrinsicCall;
+
     /** Seed for random number generator used for fuzz testing. */
     int fuzzTestSeed;
 
