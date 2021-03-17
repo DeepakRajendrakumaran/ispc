@@ -457,6 +457,8 @@ class FunctionEmitContext {
      * Otherwise leave this as NULL. */
     llvm::Value *LoadInst(llvm::Value *ptr, const Type *type = NULL, const llvm::Twine &name = "");
 
+    llvm::Value *AllocaInst(llvm::Type *llvmType, llvm::Value *size, const llvm::Twine &name = "", int align = 0,
+                            bool atEntryBlock = true);
     /** Emits an alloca instruction to allocate stack storage for the given
         type.  If a non-zero alignment is specified, the object is also
         allocated at the given alignment.  By default, the alloca
