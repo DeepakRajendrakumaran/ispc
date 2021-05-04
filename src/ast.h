@@ -144,12 +144,17 @@ class AST {
         information and source code. */
     void AddFunction(Symbol *sym, Stmt *code);
 
+    Template *AddTemplate(std::vector<const TypenameType *> *list, const std::string &name, const FunctionType *ftype, StorageClass sc, bool isInline, bool isNoInline, bool isVectorCall, std::vector<Symbol *> params, Stmt *code, SourcePos pos);
+
+    std::vector<Template *> GetTemplate();
+
     /** Generate LLVM IR for all of the functions into the current
         module. */
     void GenerateIR();
 
   private:
     std::vector<Function *> functions;
+    std::vector<Template *> templates;
 };
 
 /** Callback function type for preorder traversial visiting function for

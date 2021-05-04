@@ -81,7 +81,8 @@ enum TypeId {
     STRUCT_TYPE,           // 5
     UNDEFINED_STRUCT_TYPE, // 6
     REFERENCE_TYPE,        // 7
-    FUNCTION_TYPE          // 8
+    FUNCTION_TYPE,         // 8
+    TYPENAME_TYPE          // 9
 };
 
 /** @brief Interface class that defines the type abstraction.
@@ -818,6 +819,61 @@ class ReferenceType : public Type {
     mutable const ReferenceType *asOtherConstType;
 };
 
+/** @brief Type representing a undefined typename type.
+ */
+class TypenameType : public Type {
+  public:
+    TypenameType(std::string, Variability v, SourcePos pos);
+
+    Variability GetVariability() const;
+
+    bool IsBoolType() const;
+    bool IsFloatType() const;
+    bool IsIntType() const;
+    bool IsUnsignedType() const;
+    bool IsConstType() const;
+
+    const Type *GetBaseType() const;
+    const Type *GetAsVaryingType() const;
+    const Type *GetAsUniformType() const;
+    const Type *GetAsUnboundVariabilityType() const;
+    const Type *GetAsSOAType(int width) const;
+    const Type *ResolveUnboundVariability(Variability v) const;
+
+    const Type *GetAsConstType() const;
+    const Type *GetAsNonConstType() const;
+
+    std::string GetName() const;
+    const SourcePos& GetSourcePos() const;
+    std::string GetString() const;
+    std::string Mangle() const;
+    std::string GetCDeclaration(const std::string &name) const;
+
+    llvm::Type *LLVMType(llvm::LLVMContext *ctx) const;
+
+    llvm::DIType *GetDIType(llvm::DIScope *scope) const;
+
+    void SetDerivedType(const Type *t) const;
+
+    const Type *GetDerivedType() const;
+
+    //static const TypenameType *TemplateTypenameType;
+
+  private:
+    const std::string name;
+
+    const Variability variability;
+
+    const SourcePos pos;
+
+    mutable const Type *derivedType;
+
+    mutable std::vector<const Type *> derivedTypes;
+
+    mutable const TypenameType *asOtherConstType, *asUniformType, *asVaryingType;
+    // mutable const ReferenceType *asOtherConstType;
+};
+
 /** @brief Type representing a function (return type + argument types)
 
     FunctionType encapsulates the information related to a function's type,
@@ -927,6 +983,13 @@ class FunctionType : public Type {
    arbitrary types. */
 template <typename T> inline const T *CastType(const Type *type) { return NULL; }
 
+template <> inline const TypenameType *CastType(const Type *type) {
+    if (type != NULL && type->typeId == TYPENAME_TYPE)
+        return (const TypenameType *)type;
+    else
+        return NULL;
+}
+
 /* Now we have template specializaitons for the Types implemented in this
    file.  Each one checks the Type::typeId member and then performs the
    corresponding static cast if it's safe as per the typeId.
@@ -934,6 +997,10 @@ template <typename T> inline const T *CastType(const Type *type) { return NULL; 
 template <> inline const AtomicType *CastType(const Type *type) {
     if (type != NULL && type->typeId == ATOMIC_TYPE)
         return (const AtomicType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<AtomicType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -941,6 +1008,10 @@ template <> inline const AtomicType *CastType(const Type *type) {
 template <> inline const EnumType *CastType(const Type *type) {
     if (type != NULL && type->typeId == ENUM_TYPE)
         return (const EnumType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<EnumType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -948,6 +1019,10 @@ template <> inline const EnumType *CastType(const Type *type) {
 template <> inline const PointerType *CastType(const Type *type) {
     if (type != NULL && type->typeId == POINTER_TYPE)
         return (const PointerType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<PointerType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -955,6 +1030,10 @@ template <> inline const PointerType *CastType(const Type *type) {
 template <> inline const ArrayType *CastType(const Type *type) {
     if (type != NULL && type->typeId == ARRAY_TYPE)
         return (const ArrayType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<ArrayType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -962,6 +1041,10 @@ template <> inline const ArrayType *CastType(const Type *type) {
 template <> inline const VectorType *CastType(const Type *type) {
     if (type != NULL && type->typeId == VECTOR_TYPE)
         return (const VectorType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<VectorType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -971,6 +1054,10 @@ template <> inline const SequentialType *CastType(const Type *type) {
     // implementations are added.
     if (type != NULL && (type->typeId == ARRAY_TYPE || type->typeId == VECTOR_TYPE))
         return (const SequentialType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<SequentialType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -980,6 +1067,10 @@ template <> inline const CollectionType *CastType(const Type *type) {
     // this function.
     if (type != NULL && (type->typeId == ARRAY_TYPE || type->typeId == VECTOR_TYPE || type->typeId == STRUCT_TYPE))
         return (const CollectionType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<CollectionType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -987,6 +1078,10 @@ template <> inline const CollectionType *CastType(const Type *type) {
 template <> inline const StructType *CastType(const Type *type) {
     if (type != NULL && type->typeId == STRUCT_TYPE)
         return (const StructType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<StructType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -994,6 +1089,10 @@ template <> inline const StructType *CastType(const Type *type) {
 template <> inline const UndefinedStructType *CastType(const Type *type) {
     if (type != NULL && type->typeId == UNDEFINED_STRUCT_TYPE)
         return (const UndefinedStructType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<UndefinedStructType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -1001,6 +1100,10 @@ template <> inline const UndefinedStructType *CastType(const Type *type) {
 template <> inline const ReferenceType *CastType(const Type *type) {
     if (type != NULL && type->typeId == REFERENCE_TYPE)
         return (const ReferenceType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<ReferenceType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
@@ -1008,9 +1111,14 @@ template <> inline const ReferenceType *CastType(const Type *type) {
 template <> inline const FunctionType *CastType(const Type *type) {
     if (type != NULL && type->typeId == FUNCTION_TYPE)
         return (const FunctionType *)type;
+    else if(CastType<TypenameType>(type) != NULL) {
+        const TypenameType *tType = CastType<TypenameType>(type);
+        return CastType<FunctionType>(tType->GetDerivedType());
+    }
     else
         return NULL;
 }
+
 
 inline bool IsReferenceType(const Type *t) { return CastType<ReferenceType>(t) != NULL; }
 

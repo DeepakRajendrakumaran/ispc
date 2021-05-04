@@ -170,6 +170,35 @@ Symbol *SymbolTable::LookupFunction(const char *name, const FunctionType *type) 
     return NULL;
 }
 
+bool SymbolTable::AddTemplate(std::string name, Template *tmpl) {
+    /*const FunctionType *ft = CastType<FunctionType>(symbol->type);
+    Assert(ft != NULL);
+    if (LookupFunction(symbol->name.c_str(), ft) != NULL)
+        // A function of the same name and type has already been added to
+        // the symbol table
+        return false;*/
+
+    // = std::make_pair(tmpl->getName(), tmpl->getType().size());
+    std::vector<Template *> &tempOverloads = templates[name];
+    tempOverloads.push_back(tmpl);
+    return true;
+}
+
+bool SymbolTable::LookupTemplate(std::string name, std::vector<Template *> *matches) {
+    TemplateMapType::iterator iter = templates.find(name);
+    if (iter != templates.end()) {
+        if (matches == NULL)
+            return true;
+        else {
+            const std::vector<Template *> &tmpls = iter->second;
+            for (int j = 0; j < (int)tmpls.size(); ++j)
+                matches->push_back(tmpls[j]);
+        }
+    }
+    return matches ? (matches->size() > 0) : false;
+    // return false;
+}
+
 bool SymbolTable::AddIntrinsics(Symbol *symbol) {
     if (LookupIntrinsics(symbol->function) != NULL) {
         // A function of the same type has already been added to
@@ -328,7 +357,7 @@ void SymbolTable::Print() {
         depth += 4;
     }
 
-    fprintf(stderr, "Functions:\n----------------\n");
+    /*fprintf(stderr, "Functions:\n----------------\n");
     FunctionMapType::iterator fiter = functions.begin();
     while (fiter != functions.end()) {
         fprintf(stderr, "%s\n", fiter->first.c_str());
@@ -336,7 +365,7 @@ void SymbolTable::Print() {
         for (unsigned int j = 0; j < syms.size(); ++j)
             fprintf(stderr, "    %s\n", syms[j]->type->GetString().c_str());
         ++fiter;
-    }
+    }*/
 
     depth = 0;
     fprintf(stderr, "Named types:\n---------------\n");

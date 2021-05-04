@@ -57,9 +57,22 @@ ASTNode::~ASTNode() {}
 // AST
 
 void AST::AddFunction(Symbol *sym, Stmt *code) {
-    if (sym == NULL)
+    if (sym == NULL) {
+        printf("\n AST::AddFunction NULL \n");
         return;
+    }
+    printf("\n AST::AddFunction NOT NULL \n");
     functions.push_back(new Function(sym, code));
+}
+
+Template *AST::AddTemplate(std::vector<const TypenameType *> *list, const std::string &name, const FunctionType *ftype, StorageClass sc, bool isInline, bool isNoInline, bool isVectorCall, std::vector<Symbol *> params, Stmt *code, SourcePos pos) {
+    Template *tmpl = new Template(list, name, ftype, sc, isInline, isNoInline, isVectorCall, params, code, pos);
+    templates.push_back(tmpl);
+    return tmpl;
+}
+
+std::vector<Template *> AST::GetTemplate() {
+    return templates;
 }
 
 void AST::GenerateIR() {

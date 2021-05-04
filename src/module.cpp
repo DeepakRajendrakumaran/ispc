@@ -294,6 +294,8 @@ int Module::CompileFile() {
         fclose(f);
     }
 
+    AddTemplate();
+
     if (g->NoOmitFramePointer)
         for (llvm::Function &f : *module)
             f.addFnAttr("no-frame-pointer-elim", "true");
@@ -965,6 +967,7 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
     // symbol table
     Symbol *funSym = new Symbol(name, pos, functionType, storageClass);
     funSym->function = function;
+    printf("\n AddFunctionDeclaration : functionType = %s \n", functionType->GetString().c_str());
     bool ok = symbolTable->AddFunction(funSym);
     Assert(ok);
 }
@@ -984,9 +987,76 @@ void Module::AddFunctionDefinition(const std::string &name, const FunctionType *
     // defined with actual names.  This is yet another reason we shouldn't
     // include the names in FunctionType...
     sym->type = type;
-
+    printf("\n AddFunctionDefinition : function type = %s \n", type->GetString().c_str());
+    code->Print(1);
     ast->AddFunction(sym, code);
 }
+
+void Module::AddTemplate() {
+    
+    std::vector<Template *> templates = ast->GetTemplate();
+    for (auto &tmpl : templates) {
+        printf("\n AddTemplate name = %s\n", tmpl->getName().c_str());
+        std::map<const TypenameType *, std::vector<const Type *>> typeMap = tmpl->getInstTypes();
+        std::vector<const TypenameType *> *typenames = tmpl->getTypes();
+
+        for (int index = 0; index < (int)typeMap[typenames->at(0)].size(); index++) {
+            for (auto &it : *typenames) {
+                it->SetDerivedType(typeMap[it].at(index));
+            }
+
+            symbolTable->PushScope();
+            
+            symbolTable->PushScope();
+            std::vector<Symbol *> params = tmpl->getParams();
+            for (auto &s : params) {
+                //symbolTable->Print();
+                printf("\n AddTemplate params add = %s \n", s->name.c_str());
+                symbolTable->AddVariable(s);
+            }
+            printf("\n AddTemplate fType = %s \n getBody() =\n", tmpl->getFunctionType()->GetString().c_str());
+            tmpl->getBody()->Print(1);
+            AddFunctionDefinition(tmpl->getName(), tmpl->getFunctionType(), tmpl->getBody());
+            symbolTable->PopScope();
+            symbolTable->PopScope();
+
+        }
+    }
+    //symbolTable->Print();
+
+}
+
+void Module::InstantiateTemplates(std::string name, std::vector<Template *> templates, std::vector<std::pair<const Type *, SourcePos>> *vec) {
+    for (auto &t : templates) {
+        Template *tmpl = t;
+        std::vector<const TypenameType *> *typenames = tmpl->getTypes();
+        std::vector<const Type*> dTypes;
+        if (typenames->size() == vec->size()) {
+            // Set derived types
+            for(int index = 0; index < typenames->size(); index++) {
+                const TypenameType *tName = typenames->at(index);
+                const Type *dType = vec->at(index).first;
+                dTypes.push_back(dType);
+                tName->SetDerivedType(dType);
+                printf("\n InstantiateTemplates tName AFTER = %s \n", tName->GetString().c_str());
+            }
+            printf("\n InstantiateTemplates : ftype = %s \n", tmpl->getFunctionType()->GetString().c_str());
+            AddFunctionDeclaration(name, tmpl->getFunctionType(), tmpl->getStorageClass(), tmpl->getIsInline(),
+                    tmpl->getIsNoInline(), tmpl->getIsVectorCall(), tmpl->GetPos());
+            tmpl->Instantiate(*typenames, dTypes);
+        }
+        printf("\n InstantiateTemplates EXIT \n");
+    }
+}
+
+ void Module::AddTemplateDeclaration(std::vector<const TypenameType *> *list, const std::string &name, const FunctionType *ftype, StorageClass sc, bool isInline, bool isNoInline, bool isVectorCall, std::vector<Symbol *> params, Stmt *code, SourcePos pos) {
+     printf("\n AddTemplateDeclaration \n");
+     for(auto &it : params) {
+         printf("\n paramas AddTemplateDeclaration = %s \n", it->name.c_str());
+     }
+     Template *tmpl = ast->AddTemplate(list, name, ftype, sc, isInline, isNoInline, isVectorCall, params, code, pos);
+     symbolTable->AddTemplate(name, tmpl);
+ }
 
 void Module::AddExportedTypes(const std::vector<std::pair<const Type *, SourcePos>> &types) {
     for (int i = 0; i < (int)types.size(); ++i) {
