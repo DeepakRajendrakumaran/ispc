@@ -151,6 +151,8 @@ class Type {
         unbound. */
     bool HasUnboundVariability() const { return GetVariability() == Variability::Unbound; }
 
+    virtual const Type *GetDerivedType() const { return this; }
+
     /* Returns a type wherein any elements of the original type and
        contained types that have unbound variability have their variability
        set to the given variability. */
@@ -907,6 +909,7 @@ class FunctionType : public Type {
     const Type *GetAsUnboundVariabilityType() const;
     const Type *GetAsSOAType(int width) const;
     const FunctionType *ResolveUnboundVariability(Variability v) const;
+    const FunctionType *ResolveTypename() const;
 
     const Type *GetAsConstType() const;
     const Type *GetAsNonConstType() const;

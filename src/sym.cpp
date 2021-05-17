@@ -134,13 +134,16 @@ Symbol *SymbolTable::LookupVariable(const char *name) {
 bool SymbolTable::AddFunction(Symbol *symbol) {
     const FunctionType *ft = CastType<FunctionType>(symbol->type);
     Assert(ft != NULL);
-    if (LookupFunction(symbol->name.c_str(), ft) != NULL)
+    if (LookupFunction(symbol->name.c_str(), ft) != NULL) {
+        printf("\n SymbolTable::AddFunction FALSE \n");
         // A function of the same name and type has already been added to
         // the symbol table
         return false;
+    }
 
     std::vector<Symbol *> &funOverloads = functions[symbol->name];
     funOverloads.push_back(symbol);
+    printf("\n SymbolTable::AddFunction TRUE \n");
     return true;
 }
 
@@ -357,7 +360,7 @@ void SymbolTable::Print() {
         depth += 4;
     }
 
-    /*fprintf(stderr, "Functions:\n----------------\n");
+    fprintf(stderr, "Functions:\n----------------\n");
     FunctionMapType::iterator fiter = functions.begin();
     while (fiter != functions.end()) {
         fprintf(stderr, "%s\n", fiter->first.c_str());
@@ -365,7 +368,7 @@ void SymbolTable::Print() {
         for (unsigned int j = 0; j < syms.size(); ++j)
             fprintf(stderr, "    %s\n", syms[j]->type->GetString().c_str());
         ++fiter;
-    }*/
+    }
 
     depth = 0;
     fprintf(stderr, "Named types:\n---------------\n");

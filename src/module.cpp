@@ -251,7 +251,7 @@ int Module::CompileFile() {
     // the Module constructor returns...)
     {
         llvm::TimeTraceScope TimeScope("DefineStdlib");
-        DefineStdlib(symbolTable, g->ctx, module, g->includeStdlib);
+        // DefineStdlib(symbolTable, g->ctx, module, g->includeStdlib);
     }
 
     bool runPreprocessor = g->runCPP;
@@ -732,8 +732,11 @@ void Module::AddFunctionDeclaration(const std::string &name, const FunctionType 
             // Check for a redeclaration of a function with the same name
             // and type.  This also hits when we have previously declared
             // the function and are about to define it.
-            if (Type::Equal(overloadFunc->type, functionType))
+            if (Type::Equal(overloadFunc->type, functionType)) {
+                printf("\n Module::AddFunctionDeclaration : RETURN NOPE overloadFunc->type = %s, functionType = %s \n",
+                        overloadFunc->type->GetString().c_str(), functionType->GetString().c_str());
                 return;
+            }
 
             if (functionType->isExported || overloadType->isExported)
                 Error(pos,
@@ -1036,6 +1039,7 @@ void Module::InstantiateTemplates(std::string name, std::vector<Template *> temp
             for(int index = 0; index < typenames->size(); index++) {
                 const TypenameType *tName = typenames->at(index);
                 const Type *dType = vec->at(index).first;
+                printf("\n InstantiateTemplates dType  = %s \n", dType->GetString().c_str());
                 dTypes.push_back(dType);
                 tName->SetDerivedType(dType);
                 printf("\n InstantiateTemplates tName AFTER = %s \n", tName->GetString().c_str());
@@ -1047,6 +1051,8 @@ void Module::InstantiateTemplates(std::string name, std::vector<Template *> temp
         }
         printf("\n InstantiateTemplates EXIT \n");
     }
+    printf("\n Module::InstantiateTemplates SymbolTable \n");
+    symbolTable->Print();
 }
 
  void Module::AddTemplateDeclaration(std::vector<const TypenameType *> *list, const std::string &name, const FunctionType *ftype, StorageClass sc, bool isInline, bool isNoInline, bool isVectorCall, std::vector<Symbol *> params, Stmt *code, SourcePos pos) {

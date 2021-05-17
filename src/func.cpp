@@ -296,7 +296,10 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
             // Allocate stack storage for the parameter and emit code
             // to store the its value there.
             argSym->storagePtr = ctx->AllocaInst(argSym->type, argSym->name.c_str());
-
+printf("\n BEFORE CRASH argSym->name.c_str() = %s argSym->type = %s\n",
+        argSym->name.c_str(), argSym->type->GetString().c_str());
+(&*argIter)->dump();
+argSym->storagePtr->dump();
             ctx->StoreInst(&*argIter, argSym->storagePtr, argSym->type);
             ctx->EmitFunctionParameterDebugInfo(argSym, i);
         }
@@ -637,7 +640,7 @@ std::vector<const TypenameType *> *Template::getTypes() {
 }
 
 const FunctionType *Template::getFunctionType() {
-    return ftype;
+    return ftype->ResolveTypename();
 }
 
 StorageClass Template::getStorageClass() {

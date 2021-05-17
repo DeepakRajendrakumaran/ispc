@@ -2380,6 +2380,7 @@ std::string TypenameType::GetString() const {
         //printf("\nTypenameType::GetString derivedType->GetString() \n");
         std::string n = derivedType->GetString();
         //printf("\nTypenameType::GetString OUT 1 \n");
+        n = n + "(template typename)";
         return n;
     }
     //printf("\nTypenameType::GetString OUT 2 \n");
@@ -2417,11 +2418,14 @@ llvm::DIType *TypenameType::GetDIType(llvm::DIScope *scope) const {
 
 
 void TypenameType::SetDerivedType(const Type *t) const {
+    
     derivedType = t->GetAsUniformType();
+    //printf("\n TypenameType::SetDerivedType %s = %s \n", GetName().c_str(), derivedType->GetString().c_str());
     derivedTypes.push_back(derivedType);
 }
 
 const Type *TypenameType::GetDerivedType() const {
+    //printf("\n TypenameType::GetDerivedType %s = %s \n", GetName().c_str(), derivedType->GetString().c_str());
     return derivedType;
 }
 ///////////////////////////////////////////////////////////////////////////
@@ -2509,6 +2513,36 @@ const FunctionType *FunctionType::ResolveUnboundVariability(Variability v) const
 
     return ret;
 }
+
+const FunctionType *FunctionType::ResolveTypename() const {
+    printf("\n FunctionType::ResolveTypename \n");
+    if (returnType == NULL) {
+        Assert(m->errorCount > 0);
+        return NULL;
+    }
+    const Type *rt = returnType->GetDerivedType();
+
+    llvm::SmallVector<const Type *, 8> pt;
+    for (unsigned int i = 0; i < paramTypes.size(); ++i) {
+        if (paramTypes[i] == NULL) {
+            Assert(m->errorCount > 0);
+            return NULL;
+        }
+         printf("\n FunctionType::ResolveTypename , paramTypes[i] = %s paramTypes[i]->GetDerivedType() = %s \n",
+                 paramTypes[i]->GetString().c_str(), paramTypes[i]->GetDerivedType()->GetString().c_str());
+        pt.push_back(paramTypes[i]->GetDerivedType());
+    }
+
+    FunctionType *ret =
+        new FunctionType(rt, pt, paramNames, paramDefaults, paramPositions, isTask, isExported, isExternC, isUnmasked);
+    ret->isSafe = isSafe;
+    ret->costOverride = costOverride;
+
+    printf("\n FunctionType::ResolveTypename new func = %s \n", ret->GetString().c_str());
+
+    return ret;
+}
+
 
 const Type *FunctionType::GetAsConstType() const { return this; }
 

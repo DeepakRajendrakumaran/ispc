@@ -1,12 +1,12 @@
 template<typename T, typename C>
-uniform T goo(uniform const T arg0, uniform C arg1) {
-  //T val = 0;
-  return arg0 * 5;
+uniform int goo(uniform const T arg0, uniform int arg1) {
+  C val = 0;
+  return val * 5;
 }
 
-export uniform float foo(uniform int arg) {
+export uniform float foo(uniform int arg, uniform int arg1) {
   uniform int a = goo<int, int>(arg, arg);
-  a = goo<int, float>(arg, arg);
+  uniform int b = goo<float, int>(arg1, arg1);
   return a;
 }
 
