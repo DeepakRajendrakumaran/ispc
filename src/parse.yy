@@ -115,6 +115,7 @@ static int lYYTNameErr(char *yyres, const char *yystr);
 static void lSuggestBuiltinAlternates();
 static void lSuggestParamListAlternates();
 
+static void lAddTemplate(std::vector<const TypenameType *> *list, DeclSpecs *ds, Declarator *decl, Stmt *code);
 static void lAddDeclaration(DeclSpecs *ds, Declarator *decl);
 static void lAddFunctionParams(Declarator *decl);
 static void lAddMaskToSymbolTable(SourcePos pos);
@@ -188,6 +189,8 @@ struct ForeachDimension {
     std::pair<std::string, SourcePos> *declspecPair;
     std::vector<std::pair<std::string, SourcePos> > *declspecList;
     PragmaAttributes *pragmaAttributes;
+    const TypenameType *typeNameType;
+    std::vector<const TypenameType *> *typeNameTypeList;
 }
 
 
@@ -198,7 +201,8 @@ struct ForeachDimension {
 %token TOKEN_INT32DOTDOTDOT_CONSTANT TOKEN_UINT32DOTDOTDOT_CONSTANT
 %token TOKEN_INT64DOTDOTDOT_CONSTANT TOKEN_UINT64DOTDOTDOT_CONSTANT
 %token TOKEN_FLOAT_CONSTANT TOKEN_DOUBLE_CONSTANT TOKEN_STRING_C_LITERAL
-%token TOKEN_IDENTIFIER TOKEN_STRING_LITERAL TOKEN_TYPE_NAME TOKEN_PRAGMA TOKEN_NULL
+%token TOKEN_IDENTIFIER TOKEN_STRING_LITERAL TOKEN_TEMPLATE TOKEN_TEMPLATE_NAME
+%token TOKEN_TEMPLATE_TYPE_NAME TOKEN_TYPE_NAME TOKEN_PRAGMA TOKEN_NULL
 %token TOKEN_PTR_OP TOKEN_INC_OP TOKEN_DEC_OP TOKEN_LEFT_OP TOKEN_RIGHT_OP
 %token TOKEN_LE_OP TOKEN_GE_OP TOKEN_EQ_OP TOKEN_NE_OP
 %token TOKEN_AND_OP TOKEN_OR_OP TOKEN_MUL_ASSIGN TOKEN_DIV_ASSIGN TOKEN_MOD_ASSIGN
@@ -221,7 +225,7 @@ struct ForeachDimension {
 %token TOKEN_SYNC TOKEN_PRINT TOKEN_ASSERT
 
 %type <expr> primary_expression postfix_expression integer_dotdotdot
-%type <expr> unary_expression cast_expression funcall_expression launch_expression intrincall_expression
+%type <expr> unary_expression cast_expression funcall_expression launch_expression intrincall_expression templatecall_expression func_template_call
 %type <expr> multiplicative_expression additive_expression shift_expression
 %type <expr> relational_expression equality_expression and_expression
 %type <expr> exclusive_or_expression inclusive_or_expression
@@ -273,6 +277,9 @@ struct ForeachDimension {
 
 %type <declspecPair> declspec_item
 %type <declspecList> declspec_specifier declspec_list
+
+%type <typeNameType> template_typename
+%type <typeNameTypeList> template_typename_list func_template
 
 %start translation_unit
 %%
@@ -512,6 +519,92 @@ funcall_expression
       { $$ = NULL; }
     ;
 
+templatecall_expression
+    : func_template_call '(' ')'
+      { $$ = new FunctionCallExpr($1, new ExprList(Union(@1,@2)), Union(@1,@3)); }
+    | func_template_call '(' argument_expression_list ')'
+      { 
+         FunctionCallExpr *fCallExpr = new FunctionCallExpr($1, $3, Union(@1,@4));
+         printf("\n func_template_call fCallExpr = \n");
+         fCallExpr->Print();
+         $$ = fCallExpr;
+       }
+    | func_template_call '(' error ')'
+      { $$ = NULL; }
+    ;
+
+func_template_call
+    : TOKEN_TEMPLATE_NAME '<' type_specifier_list '>'
+      {
+          std::string *name = (yylval.stringVal);
+          printf("\n func_template_call : name = %s\n", name->c_str());
+          std::vector<std::pair<const Type *, SourcePos>> *vec = $3;
+          
+          std::vector<Template *> tmpl;
+          m->symbolTable->LookupTemplate(*name, &tmpl);
+          m->InstantiateTemplates(*name, tmpl, vec);
+
+          std::vector<Symbol *> funs;
+          m->symbolTable->LookupFunction(name->c_str(), &funs);
+          if (funs.size() > 0) {
+              printf("\n func_template_call funs.size() = %d \n", (int)funs.size());
+              $$ = new FunctionSymbolExpr(name->c_str(), funs, @1);
+              printf("\n FunctionSymbolExpr \n");
+              $$->Print();
+          }
+          if ($$ == NULL) {
+            std::vector<std::string> alternates =
+                m->symbolTable->ClosestVariableOrFunctionMatch(name->c_str());
+            std::string alts = lGetAlternates(alternates);
+            Error(@1, "Undeclared symbol \"%s\".%s", name->c_str(), alts.c_str());
+          }
+
+      }
+    ;
+
+func_template
+    : TOKEN_TEMPLATE '<' template_typename_list '>'
+      { 
+          // printf("\n func template \n");
+          $$ = $3;
+      }
+    ;
+
+template_typename_list
+    : template_typename
+      {
+           // printf("\n template_typename_list 1 : typename = %s\n", $1->GetString().c_str());
+           std::vector<const TypenameType *> *list = new std::vector<const TypenameType *>;
+           list->push_back($1);
+           $$ = list;
+     
+      }
+    | template_typename_list ',' template_typename
+      {
+           // printf("\n template_typename_list 2 : typename = %s\n", $3->GetString().c_str());
+           std::vector<const TypenameType *> *list = $1;
+           if (list == NULL) {
+               AssertPos(@1, m->errorCount > 0);
+               list = new std::vector<const TypenameType *>;
+           }
+           if ($3 != NULL)
+               list->push_back($3);
+           $$ = list;
+      }
+    ;
+
+template_typename
+    : TOKEN_TEMPLATE_TYPE_NAME TOKEN_IDENTIFIER
+    {
+         std::string *name = (yylval.stringVal);
+         // printf("\n template_typename  : typename = %s\n", name->c_str());
+         // TypenameType *tName = new TypenameType(*name, Variability::Unbound, @1);
+         TypenameType *tName = new TypenameType(*name, Variability::Uniform, @1); /*Temp - remove*/
+         $$ = tName;
+          
+    }
+    ;
+
 argument_expression_list
     : assignment_expression      { $$ = new ExprList($1, @1); }
     | argument_expression_list ',' assignment_expression
@@ -530,6 +623,7 @@ argument_expression_list
 unary_expression
     : funcall_expression
     | intrincall_expression
+    | templatecall_expression
     | TOKEN_INC_OP unary_expression
       { $$ = new UnaryExpr(UnaryExpr::PreInc, $2, Union(@1, @2)); }
     | TOKEN_DEC_OP unary_expression
@@ -2093,6 +2187,7 @@ translation_unit
     : external_declaration
     | translation_unit external_declaration
     | error ';'
+    | template_definition
     ;
 
 external_declaration
@@ -2110,6 +2205,51 @@ external_declaration
                 lAddDeclaration($1->declSpecs, $1->declarators[i]);
     }
     | ';'
+    ;
+
+template_definition
+    : func_template
+    {
+        printf("\n template_definition func_template IN \n");
+        m->symbolTable->PushScope();
+        std::vector<const TypenameType *> *list = $1;
+        for(std::vector<const TypenameType *>::iterator it = list->begin(); it != list->end(); ++it) {
+             std::string name = (*it)->GetName();
+             SourcePos pos = (*it)->GetSourcePos();
+             m->AddTypeDef(name, *it, pos);
+        }
+    }
+    declaration_specifiers declarator
+    {
+
+        // printf("\n template_definition lAddFunctionParams \n");
+        lAddFunctionParams($4);
+        lAddMaskToSymbolTable(@4);
+       /* printf("\n template_definition lAddMaskToSymbolTable Done\n");
+        if ($3->typeQualifiers & TYPEQUAL_TASK)
+            lAddThreadIndexCountToSymbolTable(@4);*/
+
+    }
+    compound_statement
+    {
+        // printf("\n template_definition compound_statement IN\n");
+        if ($4 != NULL) {
+            $4->InitFromDeclSpecs($3);
+            const FunctionType *funcType = CastType<FunctionType>($4->type);
+            if (funcType == NULL)
+                AssertPos(@3, m->errorCount > 0);
+            else if ($3->storageClass == SC_TYPEDEF)
+                Error(@3, "Illegal \"typedef\" provided with function definition.");
+            else {
+                Stmt *code = $6;
+                if (code == NULL) code = new StmtList(@6);
+                 lAddTemplate($1, $3, $4, code);
+            }
+        }
+        m->symbolTable->PopScope(); // push in lAddFunctionParams();
+        m->symbolTable->PopScope();
+        printf("\n template_definition compound_statement OUT\n");
+    }
     ;
 
 function_definition
@@ -2133,6 +2273,8 @@ function_definition
             else {
                 Stmt *code = $4;
                 if (code == NULL) code = new StmtList(@4);
+                code->Print(1);
+                //m->symbolTable->Print();
                 m->AddFunctionDefinition($2->name, funcType, code);
             }
         }
@@ -2238,6 +2380,91 @@ lSuggestParamListAlternates() {
 }
 
 
+static void lAddTemplate(std::vector<const TypenameType *> *list, DeclSpecs
+*ds, Declarator *decl, Stmt *code) {
+    if (ds == NULL || decl == NULL)
+        // Error happened earlier during parsing
+        return;
+
+     decl->InitFromDeclSpecs(ds);
+
+    if (ds->storageClass == SC_TYPEDEF)
+        m->AddTypeDef(decl->name, decl->type, decl->pos);
+    else {
+        if (decl->type == NULL) {
+            Assert(m->errorCount > 0);
+            return;
+        }
+
+        std::vector<Symbol *> params;
+
+        // now loop over its parameters and add them to the symbol table
+        for (unsigned int i = 0; i < decl->functionParams.size(); ++i) {
+            Declaration *pdecl = decl->functionParams[i];
+            Assert(pdecl != NULL && pdecl->declarators.size() == 1);
+            Declarator *declarator = pdecl->declarators[0];
+            if (declarator == NULL)
+                AssertPos(decl->pos, m->errorCount > 0);
+            else {
+                params.push_back(m->symbolTable->LookupVariable(declarator->name.c_str()));
+           
+            }
+        
+        }
+        params.push_back(m->symbolTable->LookupVariable("__mask"));
+
+        decl->type = decl->type->ResolveUnboundVariability(Variability::Varying);
+
+        const FunctionType *ft = CastType<FunctionType>(decl->type);
+        printf("\n lAddTemplate ft = %s \n", ft->GetString().c_str());
+        if (ft != NULL) {
+            bool isInline = (ds->typeQualifiers & TYPEQUAL_INLINE);
+            bool isNoInline = (ds->typeQualifiers & TYPEQUAL_NOINLINE);
+            bool isVectorCall = (ds->typeQualifiers & TYPEQUAL_VECTORCALL);
+            m->AddTemplateDeclaration(list, decl->name, ft, ds->storageClass,
+                                      isInline, isNoInline, isVectorCall,
+                                      params, code, decl->pos);
+        }
+        /*else {
+            bool isConst = (ds->typeQualifiers & TYPEQUAL_CONST) != 0;
+            m->AddGlobalVariable(decl->name, decl->type, decl->initExpr,
+                                 isConst, decl->storageClass, decl->pos);
+        }*/
+    }
+}
+
+
+
+/** Add a symbol for the built-in mask variable to the symbol table */
+static Symbol *lAddRetMaskToSymbolTable(SourcePos pos) {
+    const Type *t = NULL;
+    switch (g->target->getMaskBitCount()) {
+    case 1:
+        t = AtomicType::VaryingBool;
+        break;
+    case 8:
+        t = AtomicType::VaryingUInt8;
+        break;
+    case 16:
+        t = AtomicType::VaryingUInt16;
+        break;
+    case 32:
+        t = AtomicType::VaryingUInt32;
+        break;
+    case 64:
+        t = AtomicType::VaryingUInt64;
+        break;
+    default:
+        FATAL("Unhandled mask bitsize in lAddMaskToSymbolTable");
+    }
+
+    t = t->GetAsConstType();
+    Symbol *maskSymbol = new Symbol("__mask", pos, t);
+    //m->symbolTable->AddVariable(maskSymbol);
+    return maskSymbol;
+}
+
+
 static void
 lAddDeclaration(DeclSpecs *ds, Declarator *decl) {
     if (ds == NULL || decl == NULL)
@@ -2245,6 +2472,7 @@ lAddDeclaration(DeclSpecs *ds, Declarator *decl) {
         return;
 
     decl->InitFromDeclSpecs(ds);
+   
     if (ds->storageClass == SC_TYPEDEF)
         m->AddTypeDef(decl->name, decl->type, decl->pos);
     else {

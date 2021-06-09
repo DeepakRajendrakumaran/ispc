@@ -296,7 +296,10 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
             // Allocate stack storage for the parameter and emit code
             // to store the its value there.
             argSym->storagePtr = ctx->AllocaInst(argSym->type, argSym->name.c_str());
-
+printf("\n BEFORE CRASH argSym->name.c_str() = %s argSym->type = %s\n",
+        argSym->name.c_str(), argSym->type->GetString().c_str());
+(&*argIter)->dump();
+argSym->storagePtr->dump();
             ctx->StoreInst(&*argIter, argSym->storagePtr, argSym->type);
             ctx->EmitFunctionParameterDebugInfo(argSym, i);
         }
@@ -498,6 +501,8 @@ void Function::emitCode(FunctionEmitContext *ctx, llvm::Function *function, Sour
         }
     }
 #endif
+     /*printf("\n Function::emitCode \n");
+    function->dump();*/
 }
 
 void Function::GenerateIR() {
@@ -608,3 +613,77 @@ void Function::GenerateIR() {
         }
     }
 }
+
+Template::Template(std::vector<const TypenameType *> *list, const std::string &n, const FunctionType *ft, StorageClass sclass, bool isIn, bool isNoIn, bool isVecCall, std::vector<Symbol *> par, Stmt *c, SourcePos p) : name(n) {
+    typenames = list;
+    ftype = ft;
+    sc =sclass;
+    isInline = isIn;
+    isNoInline = isNoIn;
+    isVectorCall = isVecCall;
+    code = c;
+    pos = p;
+    params = par;
+    instantiate = false;
+}
+
+void Template::addFunction(Function *func) {
+    function = func;
+}
+
+std::string Template::getName() {
+    return name;
+}
+
+std::vector<const TypenameType *> *Template::getTypes() {
+    return typenames;
+}
+
+const FunctionType *Template::getFunctionType() {
+    return ftype->ResolveTypename();
+}
+
+StorageClass Template::getStorageClass() {
+    return sc;
+}
+    
+bool Template::getIsInline() {
+    return isInline;
+}
+ 
+bool Template::getIsNoInline() {
+    return isNoInline;
+}
+ 
+bool Template::getIsVectorCall() {
+    return isVectorCall;
+}
+ 
+SourcePos Template::GetPos() {
+    return pos;
+}
+
+Stmt *Template::getBody() {
+    return code;
+}
+
+void Template::Instantiate(std::vector<const TypenameType *> tNames, std::vector<const Type *> ts) {
+    printf("\n Template::Instantiate tNames.size() = %d, ts.size() = %d \n", (int)tNames.size(), (int)ts.size());
+    if (tNames.size() != ts.size()) {
+        // Error
+        return;
+    }
+    for (int index = 0; index < ts.size(); index++) {
+        // typeMap[tNames.at(index)] = ts.at(index);
+        std::vector<const Type *> &tNs = typeMap[tNames.at(index)];
+        tNs.push_back(ts.at(index));
+    }
+    instantiate = true;
+}
+
+/*void Template::addFuncReturn(DeclSpecs *ds) {
+    returnDS = ds;
+}
+void Template::addFuncParams(Declarator *decl) {
+    paramDecl = decl;
+}*/

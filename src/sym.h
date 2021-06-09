@@ -166,6 +166,12 @@ class SymbolTable {
         were found. */
     bool LookupFunction(const char *name, std::vector<Symbol *> *matches = NULL);
 
+    bool AddTemplate(std::string name, Template *tmpl);
+
+    bool LookupTemplate(std::string name, std::vector<Template *> *matches = NULL);
+
+
+
     /** Adds the given function symbol for LLVM intrinsic to the symbol table.
         @param symbol The function symbol to be added.
 
@@ -289,6 +295,9 @@ class SymbolTable {
         have multiple function symbols associated with it. */
     typedef std::map<std::string, std::vector<Symbol *>> FunctionMapType;
     FunctionMapType functions;
+
+    typedef std::map<std::string, std::vector<Template *>> TemplateMapType;
+    TemplateMapType templates;
 
     /** This maps ISPC symbols for corresponding LLVM intrinsic functions.
      */

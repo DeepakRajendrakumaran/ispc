@@ -2225,6 +2225,210 @@ llvm::DIType *ReferenceType::GetDIType(llvm::DIScope *scope) const {
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// TypenameType
+
+//const TypenameType *TypenameType::TemplateTypenameType = new TypenameType();
+
+TypenameType::TypenameType(std::string n, Variability v, SourcePos p) : Type(TYPENAME_TYPE), name(n), variability(v), pos(p)
+{
+    derivedType = NULL;
+
+    asUniformType = NULL;
+    asVaryingType = this;
+    asOtherConstType = this;
+}
+
+Variability TypenameType::GetVariability() const {
+    if (derivedType != NULL) {
+        return derivedType->GetVariability();
+    }
+    return variability;
+}
+
+bool TypenameType::IsBoolType() const {
+    if (derivedType != NULL) {
+        return derivedType->IsBoolType();
+    }
+    return false;
+}
+
+bool TypenameType::IsFloatType() const {
+    if (derivedType != NULL) {
+        return derivedType->IsFloatType();
+    }
+    return false;
+}
+
+bool TypenameType::IsIntType() const {
+    if (derivedType != NULL) {
+        return derivedType->IsIntType();
+    }
+    return false;
+}
+
+bool TypenameType::IsUnsignedType() const {
+    if (derivedType != NULL) {
+        return derivedType->IsUnsignedType();
+    }
+    return false;
+}
+
+bool TypenameType::IsConstType() const {
+    if (derivedType != NULL) {
+        return derivedType->IsConstType();
+    }
+    return asOtherConstType;
+}
+
+const Type *TypenameType::GetBaseType() const {
+    if (derivedType != NULL) {
+        return derivedType->GetBaseType();
+    }
+    return this;
+}
+
+const Type *TypenameType::GetAsVaryingType() const {
+    if (derivedType != NULL) {
+        return derivedType->GetAsVaryingType();
+    }
+    return this;
+    /*if (variability == Variability::Varying)
+        return this;
+
+    if (asVaryingType == NULL) {
+        asVaryingType = new TypenameType(name, Variability::Varying, pos);
+        if (variability == Variability::Uniform)
+            asVaryingType->asUniformType = this;
+    }
+    return asVaryingType;*/
+}
+
+const Type *TypenameType::GetAsUniformType() const {
+    if (derivedType != NULL) {
+        return derivedType->GetAsUniformType();
+    }
+    return this;
+    /*if (variability == Variability::Uniform)
+        return this;
+
+    if (asUniformType == NULL) {
+        asUniformType = new TypenameType(name, Variability::Uniform, pos);
+        if (variability == Variability::Varying)
+            asUniformType->asVaryingType = this;
+    }
+    return asUniformType;*/
+}
+
+const Type *TypenameType::GetAsUnboundVariabilityType() const {
+    if (derivedType != NULL) {
+        return derivedType->GetAsUnboundVariabilityType();
+    }
+    return this;
+    /*if (variability == Variability::Unbound)
+        return this;
+    return new TypenameType(name, Variability::Unbound, pos);*/
+}
+
+const Type *TypenameType::GetAsSOAType(int width) const {
+    if (derivedType != NULL) {
+        return derivedType->GetAsSOAType(width);
+    }
+    return NULL;
+}
+
+const Type *TypenameType::ResolveUnboundVariability(Variability v) const {
+    if (derivedType != NULL) {
+        return derivedType->ResolveUnboundVariability(v);
+    }
+    return this;
+    /*if (variability != Variability::Unbound)
+        return this;
+    return new TypenameType(name, v, pos);*/
+}
+
+const Type *TypenameType::GetAsConstType() const {
+    if (derivedType != NULL) {
+        return derivedType->GetAsConstType();
+    }
+    return asOtherConstType;
+}
+
+const Type *TypenameType::GetAsNonConstType() const {
+    if (derivedType != NULL) {
+        return derivedType->GetAsNonConstType();
+    }
+    return asOtherConstType;
+}
+
+std::string TypenameType::GetName() const{
+    /*if (derivedType != NULL) {
+        return derivedType->GetName();
+    }*/
+    return name;
+}
+
+const SourcePos& TypenameType::GetSourcePos() const{
+    /*if (derivedType != NULL) {
+        return derivedType->GetSourcePos();
+    }*/
+    return pos;
+}
+
+std::string TypenameType::GetString() const {
+    //printf("\nTypenameType::GetString IN \n");
+    if (derivedType != NULL) {
+        //printf("\nTypenameType::GetString derivedType->GetString() \n");
+        std::string n = derivedType->GetString();
+        //printf("\nTypenameType::GetString OUT 1 \n");
+        n = n + "(template typename)";
+        return n;
+    }
+    //printf("\nTypenameType::GetString OUT 2 \n");
+    return name;
+}
+
+std::string TypenameType::Mangle() const {
+    if (derivedType != NULL) {
+        return derivedType->Mangle();
+    }
+    return std::string("typename");
+}
+
+std::string TypenameType::GetCDeclaration(const std::string &name) const {
+    if (derivedType != NULL) {
+        return derivedType->GetCDeclaration(name);
+    }
+    return std::string("typename");
+}
+
+llvm::Type *TypenameType::LLVMType(llvm::LLVMContext *ctx) const {
+    if (derivedType != NULL) {
+        return derivedType->LLVMType(ctx);
+    }
+    return NULL;
+}
+
+llvm::DIType *TypenameType::GetDIType(llvm::DIScope *scope) const {
+    if (derivedType != NULL) {
+        return derivedType->GetDIType(scope);
+    }
+
+    return NULL;
+}
+
+
+void TypenameType::SetDerivedType(const Type *t) const {
+    
+    derivedType = t->GetAsUniformType();
+    //printf("\n TypenameType::SetDerivedType %s = %s \n", GetName().c_str(), derivedType->GetString().c_str());
+    derivedTypes.push_back(derivedType);
+}
+
+const Type *TypenameType::GetDerivedType() const {
+    //printf("\n TypenameType::GetDerivedType %s = %s \n", GetName().c_str(), derivedType->GetString().c_str());
+    return derivedType;
+}
+///////////////////////////////////////////////////////////////////////////
 // FunctionType
 
 FunctionType::FunctionType(const Type *r, const llvm::SmallVector<const Type *, 8> &a, SourcePos p)
@@ -2309,6 +2513,36 @@ const FunctionType *FunctionType::ResolveUnboundVariability(Variability v) const
 
     return ret;
 }
+
+const FunctionType *FunctionType::ResolveTypename() const {
+    printf("\n FunctionType::ResolveTypename \n");
+    if (returnType == NULL) {
+        Assert(m->errorCount > 0);
+        return NULL;
+    }
+    const Type *rt = returnType->GetDerivedType();
+
+    llvm::SmallVector<const Type *, 8> pt;
+    for (unsigned int i = 0; i < paramTypes.size(); ++i) {
+        if (paramTypes[i] == NULL) {
+            Assert(m->errorCount > 0);
+            return NULL;
+        }
+         printf("\n FunctionType::ResolveTypename , paramTypes[i] = %s paramTypes[i]->GetDerivedType() = %s \n",
+                 paramTypes[i]->GetString().c_str(), paramTypes[i]->GetDerivedType()->GetString().c_str());
+        pt.push_back(paramTypes[i]->GetDerivedType());
+    }
+
+    FunctionType *ret =
+        new FunctionType(rt, pt, paramNames, paramDefaults, paramPositions, isTask, isExported, isExternC, isUnmasked);
+    ret->isSafe = isSafe;
+    ret->costOverride = costOverride;
+
+    printf("\n FunctionType::ResolveTypename new func = %s \n", ret->GetString().c_str());
+
+    return ret;
+}
+
 
 const Type *FunctionType::GetAsConstType() const { return this; }
 

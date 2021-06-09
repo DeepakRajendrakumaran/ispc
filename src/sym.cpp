@@ -134,13 +134,16 @@ Symbol *SymbolTable::LookupVariable(const char *name) {
 bool SymbolTable::AddFunction(Symbol *symbol) {
     const FunctionType *ft = CastType<FunctionType>(symbol->type);
     Assert(ft != NULL);
-    if (LookupFunction(symbol->name.c_str(), ft) != NULL)
+    if (LookupFunction(symbol->name.c_str(), ft) != NULL) {
+        printf("\n SymbolTable::AddFunction FALSE \n");
         // A function of the same name and type has already been added to
         // the symbol table
         return false;
+    }
 
     std::vector<Symbol *> &funOverloads = functions[symbol->name];
     funOverloads.push_back(symbol);
+    printf("\n SymbolTable::AddFunction TRUE \n");
     return true;
 }
 
@@ -168,6 +171,35 @@ Symbol *SymbolTable::LookupFunction(const char *name, const FunctionType *type) 
         }
     }
     return NULL;
+}
+
+bool SymbolTable::AddTemplate(std::string name, Template *tmpl) {
+    /*const FunctionType *ft = CastType<FunctionType>(symbol->type);
+    Assert(ft != NULL);
+    if (LookupFunction(symbol->name.c_str(), ft) != NULL)
+        // A function of the same name and type has already been added to
+        // the symbol table
+        return false;*/
+
+    // = std::make_pair(tmpl->getName(), tmpl->getType().size());
+    std::vector<Template *> &tempOverloads = templates[name];
+    tempOverloads.push_back(tmpl);
+    return true;
+}
+
+bool SymbolTable::LookupTemplate(std::string name, std::vector<Template *> *matches) {
+    TemplateMapType::iterator iter = templates.find(name);
+    if (iter != templates.end()) {
+        if (matches == NULL)
+            return true;
+        else {
+            const std::vector<Template *> &tmpls = iter->second;
+            for (int j = 0; j < (int)tmpls.size(); ++j)
+                matches->push_back(tmpls[j]);
+        }
+    }
+    return matches ? (matches->size() > 0) : false;
+    // return false;
 }
 
 bool SymbolTable::AddIntrinsics(Symbol *symbol) {

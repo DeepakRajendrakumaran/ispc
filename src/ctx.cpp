@@ -3290,6 +3290,17 @@ llvm::Value *FunctionEmitContext::CallInst(llvm::Value *func, const FunctionType
 #if ISPC_LLVM_VERSION >= ISPC_LLVM_11_0
         llvm::PointerType *func_ptr_type = llvm::dyn_cast<llvm::PointerType>(func->getType());
         llvm::FunctionType *func_type = llvm::dyn_cast<llvm::FunctionType>(func_ptr_type->getPointerElementType());
+        printf("\n BBLOCL \n");
+        bblock->dump();
+        printf("\n FUNCALL \n type \n");
+        func_type->dump();
+        printf("\n func \n");
+        func->dump();
+        for (auto &a : argVals) {
+            printf("\n arg ");
+            a->dump();
+        }
+        printf("\n DONE \n");
         llvm::CallInst *callinst = llvm::CallInst::Create(func_type, func, argVals, name, bblock);
 #else
         llvm::CallInst *callinst = llvm::CallInst::Create(func, argVals, name, bblock);

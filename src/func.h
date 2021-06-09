@@ -26,7 +26,7 @@
    EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
    PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
    PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   LIABILITY, WHETHER IN CONTTOKEN_TEMPLATERACT, STRICT LIABILITY, OR TORT (INCLUDING
    NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
@@ -38,6 +38,8 @@
 #pragma once
 
 #include "ispc.h"
+#include "type.h"
+#include "decl.h"
 
 #include <vector>
 
@@ -66,4 +68,45 @@ class Function {
     Symbol *taskIndexSym1, *taskCountSym1;
     Symbol *taskIndexSym2, *taskCountSym2;
 };
+
+class Template {
+  public:
+    Template(std::vector<const TypenameType *> *list, const std::string &n, const FunctionType *ft, StorageClass sclass, bool isIn,  bool isNoIn, bool isVecCall, std::vector<Symbol *> par, Stmt *c, SourcePos p);
+    void addFunction(Function *func);
+    //void addFuncReturn(DeclSpecs *ds);
+   // void addFuncParams(Declarator *decl);
+    std::string getName();
+    std::vector<const TypenameType *> *getTypes();
+    const FunctionType *getFunctionType();
+    StorageClass getStorageClass();
+    bool getIsInline();
+    bool getIsNoInline();
+    bool getIsVectorCall();
+    SourcePos GetPos();
+    Stmt *getBody();
+    void Instantiate(std::vector<const TypenameType *> tNames, std::vector<const Type *> ts);
+    std::map<const TypenameType *, std::vector<const Type *>> getInstTypes() { return typeMap; };
+    std::vector<Symbol *> getParams() { return params; }
+
+
+  private:
+    Function *function;
+    //std::vector<std::string> typenames;
+    std::vector<const TypenameType *> *typenames;
+    const std::string name;
+    const FunctionType *ftype;
+    StorageClass sc;
+    bool isInline;
+    bool isNoInline;
+    bool isVectorCall;
+    Stmt *code;
+    SourcePos pos;
+    std::vector<Symbol *> params;
+    std::map<const TypenameType *, std::vector<const Type *>> typeMap;
+    bool instantiate;
+    //DeclSpecs *returnDS;
+   // Declarator *paramDecl;
+
+};
+
 } // namespace ispc

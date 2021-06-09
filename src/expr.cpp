@@ -3502,6 +3502,8 @@ static const FunctionType *lGetFunctionType(Expr *func) {
         return NULL;
 
     const Type *type = func->GetType();
+    // printf("\n lGetFunctionType type = %s \n", type->GetString().c_str());
+    // func->Print();
     if (type == NULL)
         return NULL;
 
@@ -3522,12 +3524,16 @@ llvm::Value *FunctionCallExpr::GetValue(FunctionEmitContext *ctx) const {
 
     llvm::Value *callee = func->GetValue(ctx);
 
+    // printf("\n FunctionCallExpr::GetValue callee \n");
+    // callee->dump();
+
     if (callee == NULL) {
         AssertPos(pos, m->errorCount > 0);
         return NULL;
     }
 
     const FunctionType *ft = lGetFunctionType(func);
+    // printf("\n FunctionCallExpr::GetValue FunctionType = %s \n", ft->GetString().c_str());
     AssertPos(pos, ft != NULL);
     bool isVoidFunc = ft->GetReturnType()->IsVoidType();
 

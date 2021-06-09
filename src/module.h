@@ -101,6 +101,13 @@ class Module {
         provided statements to the module. */
     void AddFunctionDefinition(const std::string &name, const FunctionType *ftype, Stmt *code);
 
+    void InstantiateTemplates(std::string name, std::vector<Template *> tmpl, std::vector<std::pair<const Type *, SourcePos>> *vec);
+
+    void AddTemplate();
+    
+    void AddTemplateDeclaration(std::vector<const TypenameType *> *list, const std::string &name, const FunctionType *ftype, StorageClass sc, bool isInline,
+                                bool isNoInline, bool isVectorCall, std::vector<Symbol *> params, Stmt *code, SourcePos pos);
+
     /** Adds the given type to the set of types that have their definitions
         included in automatically generated header files. */
     void AddExportedTypes(const std::vector<std::pair<const Type *, SourcePos>> &types);
